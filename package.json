@@ -9,12 +9,21 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@react-three/drei": "^9.77.0",
-    "@react-three/fiber": "^8.13.0",
+    "@react-three/drei": "^9.92.1",
+    "@react-three/fiber": "^8.15.12",
+    "@tensorflow-models/body-pix": "^2.2.1",
+    "@tensorflow/tfjs": "^4.22.0",
+    "@types/gif.js": "^0.2.5",
+    "@vercel/kv": "^3.0.0",
+    "gif.js": "^0.2.0",
+    "html2canvas": "^1.4.1",
+    "mongodb": "^6.10.0",
+    "mongoose": "^8.8.1",
     "next": "15.0.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "three": "^0.152.2"
+    "three": "^0.159.0",
+    "uuid": "^11.0.3"
   },
   "devDependencies": {
     "@types/node": "^20",
