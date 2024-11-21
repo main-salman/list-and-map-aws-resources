@@ -9,6 +9,10 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@aws-sdk/client-ec2": "^3.697.0",
+    "@aws-sdk/client-iam": "^3.696.0",
+    "@aws-sdk/client-rds": "^3.697.0",
+    "@aws-sdk/client-s3": "^3.697.0",
     "@react-three/drei": "^9.92.1",
     "@react-three/fiber": "^8.15.12",
     "@tensorflow-models/body-pix": "^2.2.1",
