@@ -20,6 +20,29 @@ import {
 import {
   ECSClient, ListClustersCommand, ListTaskDefinitionsCommand, ListServicesCommand
 } from '@aws-sdk/client-ecs';
+import { 
+  ElasticLoadBalancingV2Client, 
+  DescribeLoadBalancersCommand,
+  DescribeTargetGroupsCommand,
+  DescribeListenersCommand
+} from "@aws-sdk/client-elastic-load-balancing-v2";
+import dynamic from 'next/dynamic';
+
+import {
+  ACMClient,
+  ListCertificatesCommand,
+  DescribeCertificateCommand
+} from "@aws-sdk/client-acm";
+
+const ResourceMap = dynamic(() => import('./components/ResourceMap'), {
+  ssr: false
+});
+
+interface ResourceLink {
+  source: string;
+  target: string;
+  label?: string;
+}
 
 interface AWSResource {
   type: string;
@@ -28,6 +51,14 @@ interface AWSResource {
   id: string;
   region: string;
   url: string;
+  relationships?: {
+    securityGroups?: string[];
+    targetGroups?: string[];
+    loadBalancer?: string;
+    dnsRecords?: string[];
+    certificate?: string;
+    instances?: string[];
+  };
 }
 
 export default function Home() {
@@ -42,68 +73,6 @@ export default function Home() {
     'eu-west-1', 'eu-west-2', 'eu-central-1',
     'ap-southeast-1', 'ap-southeast-2', 'ap-northeast-1'
   ];
-
-  const downloadHTML = () => {
-    const groupedResources = groupResourcesByService(resources);
-    
-    let html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>AWS Resources Report</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 2rem; }
-          .service-group { margin-bottom: 2rem; }
-          .resource { margin: 1rem 0; padding: 1rem; background: #f5f5f5; border-radius: 4px; }
-          h1 { color: #232f3e; }
-          h2 { color: #444; }
-          .resource-details { margin: 0.5rem 0; }
-          a { color: #0073bb; }
-        </style>
-      </head>
-      <body>
-        <h1>AWS Resources Report</h1>
-        <p>Generated on: ${new Date().toLocaleString()}</p>
-    `;
-
-    Object.entries(groupedResources).forEach(([serviceType, serviceResources]) => {
-      html += `
-        <div class="service-group">
-          <h2>${serviceType}</h2>
-      `;
-
-      serviceResources.forEach(resource => {
-        html += `
-          <div class="resource">
-            <h3>${resource.name || resource.id}</h3>
-            <div class="resource-details">
-              <p>Type: ${resource.type}</p>
-              <p>Region: ${resource.region}</p>
-              <p>ID: ${resource.id}</p>
-              <p><a href="${resource.url}" target="_blank">View in Console</a></p>
-            </div>
-          </div>
-        `;
-      });
-
-      html += `</div>`;
-    });
-
-    html += `
-      </body>
-      </html>
-    `;
-
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `aws-resources-${new Date().toISOString()}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
 
   const groupResourcesByService = (resources: AWSResource[]) => {
     return resources.reduce((acc, resource) => {
@@ -256,6 +225,105 @@ export default function Home() {
         } catch (err) {
           console.error(`Error scanning ECS in ${region}:`, err);
         }
+
+        // ALB Resources
+        const elbv2Client = new ElasticLoadBalancingV2Client({
+          region,
+          credentials: { accessKeyId, secretAccessKey }
+        });
+
+        try {
+          const loadBalancers = await elbv2Client.send(new DescribeLoadBalancersCommand({}));
+          
+          for (const lb of loadBalancers.LoadBalancers || []) {
+            // Get listeners to find certificates
+            const listeners = await elbv2Client.send(new DescribeListenersCommand({
+              LoadBalancerArn: lb.LoadBalancerArn
+            }));
+
+            const certificateArns = listeners.Listeners
+              ?.filter(l => l.Certificates && l.Certificates.length > 0)
+              .map(l => l.Certificates?.[0].CertificateArn)
+              .filter((arn): arn is string => arn !== undefined);
+
+            // Add the load balancer
+            discoveredResources.push({
+              type: 'Application Load Balancer',
+              serviceType: 'ELB',
+              name: lb.LoadBalancerName || '',
+              id: lb.LoadBalancerArn || '',
+              region,
+              url: `https://${region}.console.aws.amazon.com/ec2/v2/home?region=${region}#LoadBalancer:loadBalancerArn=${lb.LoadBalancerArn}`,
+              relationships: {
+                securityGroups: lb.SecurityGroups,
+                dnsRecords: [lb.DNSName || ''],
+                certificate: certificateArns?.[0]
+              }
+            });
+
+            // Get target groups for this ALB
+            const targetGroups = await elbv2Client.send(new DescribeTargetGroupsCommand({
+              LoadBalancerArn: lb.LoadBalancerArn
+            }));
+
+            targetGroups.TargetGroups?.forEach(tg => {
+              discoveredResources.push({
+                type: 'Target Group',
+                serviceType: 'ELB',
+                name: tg.TargetGroupName || '',
+                id: tg.TargetGroupArn || '',
+                region,
+                url: `https://${region}.console.aws.amazon.com/ec2/v2/home?region=${region}#TargetGroup:targetGroupArn=${tg.TargetGroupArn}`,
+                relationships: {
+                  loadBalancer: lb.LoadBalancerArn
+                }
+              });
+            });
+          }
+        } catch (err) {
+          console.error(`Error scanning ALB in ${region}:`, err);
+        }
+
+        // ACM Certificates (Regional service)
+        const acmClient = new ACMClient({
+          region,
+          credentials: { accessKeyId, secretAccessKey }
+        });
+
+        try {
+          const certificates = await acmClient.send(new ListCertificatesCommand({}));
+          
+          for (const certSummary of certificates.CertificateSummaryList || []) {
+            // Get detailed certificate info
+            const certDetails = await acmClient.send(new DescribeCertificateCommand({
+              CertificateArn: certSummary.CertificateArn
+            }));
+            
+            const cert = certDetails.Certificate;
+            if (!cert) continue;
+
+            // Find associated ALB
+            const linkedALB = discoveredResources.find(r => 
+              r.type === 'Application Load Balancer' && 
+              cert.InUseBy?.some(arn => arn === r.id)
+            );
+
+            discoveredResources.push({
+              type: 'ACM Certificate',
+              serviceType: 'ACM',
+              name: cert.DomainName || '',
+              id: cert.CertificateArn || '',
+              region,
+              url: `https://${region}.console.aws.amazon.com/acm/home?region=${region}#/certificates/${cert.CertificateArn}`,
+              relationships: {
+                loadBalancer: linkedALB?.id,
+                dnsRecords: [cert.DomainName || '', ...(cert.SubjectAlternativeNames || [])]
+              }
+            });
+          }
+        } catch (err) {
+          console.error(`Error scanning ACM in ${region}:`, err);
+        }
       }
 
       // Route 53 (Global Service)
@@ -282,13 +350,21 @@ export default function Home() {
           }));
 
           records.ResourceRecordSets?.forEach(record => {
+            const linkedLoadBalancer = discoveredResources.find(
+              r => r.type === 'Application Load Balancer' && 
+              r.relationships?.dnsRecords?.includes(record.AliasTarget?.DNSName || '')
+            );
+
             discoveredResources.push({
               type: 'Route 53 Record',
               serviceType: 'Route 53',
               name: record.Name || '',
               id: `${zone.Id}/${record.Name}/${record.Type}`,
               region: 'global',
-              url: `https://console.aws.amazon.com/route53/home#resource-record-sets:${zone.Id}`
+              url: `https://console.aws.amazon.com/route53/home#resource-record-sets:${zone.Id}`,
+              relationships: {
+                loadBalancer: linkedLoadBalancer?.id
+              }
             });
           });
         }
@@ -354,6 +430,243 @@ export default function Home() {
     }
   };
 
+  const downloadMapHTML = () => {
+    const groupedResources = groupResourcesByService(resources);
+    
+    let html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>AWS Resources Map</title>
+        <script src="https://unpkg.com/d3@7.8.5/dist/d3.min.js"></script>
+        <style>
+          body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 0;
+            background: #1a1a1a;
+            color: white;
+          }
+          #map {
+            width: 100vw;
+            height: 100vh;
+          }
+          .node {
+            fill: #2a2a2a;
+            stroke: #4a4a4a;
+            rx: 6;
+            ry: 6;
+          }
+          .node text {
+            fill: white;
+            text-anchor: middle;
+            font-size: 12px;
+          }
+          .link {
+            stroke: #4a4a4a;
+            stroke-width: 2px;
+          }
+          .service-label {
+            fill: #6b7280;
+            font-size: 14px;
+            font-weight: bold;
+          }
+        </style>
+      </head>
+      <body>
+        <svg id="map"></svg>
+        <script>
+          const resources = ${JSON.stringify(resources)};
+          const width = window.innerWidth;
+          const height = window.innerHeight;
+          
+          const svg = d3.select('#map')
+            .attr('width', width)
+            .attr('height', height);
+            
+          const simulation = d3.forceSimulation()
+            .force('link', d3.forceLink().id(d => d.id))
+            .force('charge', d3.forceManyBody().strength(-1000))
+            .force('center', d3.forceCenter(width / 2, height / 2))
+            .force('collision', d3.forceCollide().radius(80));
+          
+          const nodes = resources.map(r => ({...r}));
+          const links = [];
+          
+          // Create links between resources of the same service
+          resources.forEach((source, i) => {
+            resources.forEach((target, j) => {
+              if (i < j && source.serviceType === target.serviceType) {
+                links.push({
+                  source: source.id,
+                  target: target.id
+                });
+              }
+            });
+          });
+          
+          const link = svg.append('g')
+            .selectAll('line')
+            .data(links)
+            .join('line')
+            .attr('class', 'link');
+          
+          const node = svg.append('g')
+            .selectAll('g')
+            .data(nodes)
+            .join('g');
+          
+          node.append('rect')
+            .attr('class', 'node')
+            .attr('width', 160)
+            .attr('height', 60)
+            .attr('x', -80)
+            .attr('y', -30);
+          
+          node.append('text')
+            .attr('dy', '-10')
+            .text(d => d.name || d.id);
+          
+          node.append('text')
+            .attr('dy', '10')
+            .text(d => d.type);
+          
+          node.append('text')
+            .attr('dy', '30')
+            .attr('class', 'service-label')
+            .text(d => d.serviceType);
+          
+          node.append('title')
+            .text(d => d.url);
+          
+          node.on('click', (event, d) => {
+            window.open(d.url, '_blank');
+          });
+          
+          simulation
+            .nodes(nodes)
+            .on('tick', () => {
+              link
+                .attr('x1', d => d.source.x)
+                .attr('y1', d => d.source.y)
+                .attr('x2', d => d.target.x)
+                .attr('y2', d => d.target.y);
+              
+              node
+                .attr('transform', d => \`translate(\${d.x},\${d.y})\`);
+            });
+          
+          simulation.force('link').links(links);
+          
+          // Add zoom behavior
+          const zoom = d3.zoom()
+            .scaleExtent([0.1, 4])
+            .on('zoom', (event) => {
+              svg.selectAll('g').attr('transform', event.transform);
+            });
+          
+          svg.call(zoom);
+        </script>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `aws-resources-map-${new Date().toISOString()}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadHTML = () => {
+    const groupedResources = groupResourcesByService(resources);
+    
+    let html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>AWS Resources List</title>
+        <style>
+          body { 
+            font-family: Arial, sans-serif; 
+            margin: 2rem; 
+            line-height: 1.5;
+          }
+          .service-group { 
+            margin-bottom: 2rem; 
+          }
+          .resource { 
+            margin: 1rem 0; 
+            padding: 1rem; 
+            background: #f5f5f5; 
+            border-radius: 4px; 
+          }
+          h1 { color: #232f3e; }
+          h2 { color: #444; }
+          .resource-details { margin: 0.5rem 0; }
+          a { 
+            color: #0073bb;
+            text-decoration: none;
+          }
+          a:hover {
+            text-decoration: underline;
+          }
+          .resource-title {
+            font-size: 1.17em;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+          }
+        </style>
+      </head>
+      <body>
+        <h1>AWS Resources Report</h1>
+        <p>Generated on: ${new Date().toLocaleString()}</p>
+    `;
+
+    Object.entries(groupedResources).forEach(([serviceType, serviceResources]) => {
+      html += `
+        <div class="service-group">
+          <h2>${serviceType}</h2>
+      `;
+
+      serviceResources.forEach(resource => {
+        html += `
+          <div class="resource">
+            <div class="resource-title">
+              <a href="${resource.url}" target="_blank">${resource.name || resource.id}</a>
+            </div>
+            <div class="resource-details">
+              <p>Type: ${resource.type}</p>
+              <p>Region: ${resource.region}</p>
+              <p>ID: ${resource.id}</p>
+            </div>
+          </div>
+        `;
+      });
+
+      html += `</div>`;
+    });
+
+    html += `
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `aws-resources-${new Date().toISOString()}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const groupedResources = groupResourcesByService(resources);
 
   return (
@@ -406,13 +719,24 @@ export default function Home() {
 
         {resources.length > 0 && (
           <>
-            <div className="mb-4">
+            <div className="mb-4 flex gap-4">
               <button
                 onClick={downloadHTML}
                 className="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600"
               >
-                Download Report
+                Download List Report
               </button>
+              <button
+                onClick={downloadMapHTML}
+                className="bg-purple-500 text-white px-4 py-2 rounded-md hover:bg-purple-600"
+              >
+                Download Map Report
+              </button>
+            </div>
+
+            <div className="bg-gray-800 rounded-lg p-6 mb-8">
+              <h2 className="text-2xl font-bold mb-4">Resource Map</h2>
+              <ResourceMap resources={resources} />
             </div>
 
             <div className="bg-gray-800 rounded-lg p-6">
