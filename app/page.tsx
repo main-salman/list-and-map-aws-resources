@@ -1,9 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { 
   EC2Client, DescribeInstancesCommand,
-  DescribeVolumesCommand, DescribeSecurityGroupsCommand 
+  DescribeVolumesCommand, DescribeSecurityGroupsCommand,
+  DescribeNatGatewaysCommand,
+  DescribeInternetGatewaysCommand,
+  DescribeRouteTablesCommand
 } from '@aws-sdk/client-ec2';
 import { 
   S3Client, ListBucketsCommand 
@@ -34,6 +37,23 @@ import {
   DescribeCertificateCommand
 } from "@aws-sdk/client-acm";
 
+import { downloadSVG } from '@/utils/svgExport';
+
+import {
+  ECRClient,
+  DescribeRepositoriesCommand
+} from '@aws-sdk/client-ecr';
+
+import {
+  EventBridgeClient,
+  ListRulesCommand
+} from '@aws-sdk/client-eventbridge';
+
+import {
+  LambdaClient,
+  ListFunctionsCommand
+} from '@aws-sdk/client-lambda';
+
 const ResourceMap = dynamic(() => import('./components/ResourceMap'), {
   ssr: false
 });
@@ -59,6 +79,10 @@ interface AWSResource {
     certificate?: string;
     instances?: string[];
   };
+}
+
+interface ResourceMapRef {
+  exportToSvg: () => Promise<void>;
 }
 
 export default function Home() {
@@ -226,7 +250,7 @@ export default function Home() {
           console.error(`Error scanning ECS in ${region}:`, err);
         }
 
-        // ALB Resources
+        // ALB/ELB Resources
         const elbv2Client = new ElasticLoadBalancingV2Client({
           region,
           credentials: { accessKeyId, secretAccessKey }
@@ -236,7 +260,7 @@ export default function Home() {
           const loadBalancers = await elbv2Client.send(new DescribeLoadBalancersCommand({}));
           
           for (const lb of loadBalancers.LoadBalancers || []) {
-            // Get listeners to find certificates
+            // Get listeners
             const listeners = await elbv2Client.send(new DescribeListenersCommand({
               LoadBalancerArn: lb.LoadBalancerArn
             }));
@@ -261,7 +285,22 @@ export default function Home() {
               }
             });
 
-            // Get target groups for this ALB
+            // Add listeners
+            listeners.Listeners?.forEach(listener => {
+              discoveredResources.push({
+                type: 'ELB Listener',
+                serviceType: 'ELB',
+                name: `${lb.LoadBalancerName}-${listener.Port}`,
+                id: listener.ListenerArn || '',
+                region,
+                url: `https://${region}.console.aws.amazon.com/ec2/v2/home?region=${region}#LoadBalancer:loadBalancerArn=${lb.LoadBalancerArn}`,
+                relationships: {
+                  loadBalancer: lb.LoadBalancerArn
+                }
+              });
+            });
+
+            // Get target groups
             const targetGroups = await elbv2Client.send(new DescribeTargetGroupsCommand({
               LoadBalancerArn: lb.LoadBalancerArn
             }));
@@ -281,7 +320,7 @@ export default function Home() {
             });
           }
         } catch (err) {
-          console.error(`Error scanning ALB in ${region}:`, err);
+          console.error(`Error scanning ELB in ${region}:`, err);
         }
 
         // ACM Certificates (Regional service)
@@ -323,6 +362,123 @@ export default function Home() {
           }
         } catch (err) {
           console.error(`Error scanning ACM in ${region}:`, err);
+        }
+
+        // NAT Gateways
+        try {
+          const natGateways = await ec2Client.send(new DescribeNatGatewaysCommand({}));
+          natGateways.NatGateways?.forEach(nat => {
+            discoveredResources.push({
+              type: 'NAT Gateway',
+              serviceType: 'EC2',
+              name: nat.Tags?.find(tag => tag.Key === 'Name')?.Value || nat.NatGatewayId || '',
+              id: nat.NatGatewayId || '',
+              region,
+              url: `https://${region}.console.aws.amazon.com/vpc/home?region=${region}#NatGatewayDetails:natGatewayId=${nat.NatGatewayId}`
+            });
+          });
+        } catch (err) {
+          console.error(`Error scanning NAT Gateways in ${region}:`, err);
+        }
+
+        // Internet Gateways
+        try {
+          const igws = await ec2Client.send(new DescribeInternetGatewaysCommand({}));
+          igws.InternetGateways?.forEach(igw => {
+            discoveredResources.push({
+              type: 'Internet Gateway',
+              serviceType: 'EC2',
+              name: igw.Tags?.find(tag => tag.Key === 'Name')?.Value || igw.InternetGatewayId || '',
+              id: igw.InternetGatewayId || '',
+              region,
+              url: `https://${region}.console.aws.amazon.com/vpc/home?region=${region}#InternetGateway:internetGatewayId=${igw.InternetGatewayId}`
+            });
+          });
+        } catch (err) {
+          console.error(`Error scanning Internet Gateways in ${region}:`, err);
+        }
+
+        // Route Tables
+        try {
+          const routeTables = await ec2Client.send(new DescribeRouteTablesCommand({}));
+          routeTables.RouteTables?.forEach(rt => {
+            discoveredResources.push({
+              type: 'Route Table',
+              serviceType: 'EC2',
+              name: rt.Tags?.find(tag => tag.Key === 'Name')?.Value || rt.RouteTableId || '',
+              id: rt.RouteTableId || '',
+              region,
+              url: `https://${region}.console.aws.amazon.com/vpc/home?region=${region}#RouteTableDetails:RouteTableId=${rt.RouteTableId}`
+            });
+          });
+        } catch (err) {
+          console.error(`Error scanning Route Tables in ${region}:`, err);
+        }
+
+        // ECR Repositories
+        const ecrClient = new ECRClient({
+          region,
+          credentials: { accessKeyId, secretAccessKey }
+        });
+
+        try {
+          const repositories = await ecrClient.send(new DescribeRepositoriesCommand({}));
+          repositories.repositories?.forEach(repo => {
+            discoveredResources.push({
+              type: 'ECR Repository',
+              serviceType: 'ECR',
+              name: repo.repositoryName || '',
+              id: repo.repositoryArn || '',
+              region,
+              url: `https://${region}.console.aws.amazon.com/ecr/repositories/${repo.repositoryName}`
+            });
+          });
+        } catch (err) {
+          console.error(`Error scanning ECR in ${region}:`, err);
+        }
+
+        // EventBridge Rules
+        const eventBridgeClient = new EventBridgeClient({
+          region,
+          credentials: { accessKeyId, secretAccessKey }
+        });
+
+        try {
+          const rules = await eventBridgeClient.send(new ListRulesCommand({}));
+          rules.Rules?.forEach(rule => {
+            discoveredResources.push({
+              type: 'EventBridge Rule',
+              serviceType: 'EventBridge',
+              name: rule.Name || '',
+              id: rule.Arn || '',
+              region,
+              url: `https://${region}.console.aws.amazon.com/events/home?region=${region}#/rules/${rule.Name}`
+            });
+          });
+        } catch (err) {
+          console.error(`Error scanning EventBridge in ${region}:`, err);
+        }
+
+        // Lambda Functions
+        const lambdaClient = new LambdaClient({
+          region,
+          credentials: { accessKeyId, secretAccessKey }
+        });
+
+        try {
+          const functions = await lambdaClient.send(new ListFunctionsCommand({}));
+          functions.Functions?.forEach(func => {
+            discoveredResources.push({
+              type: 'Lambda Function',
+              serviceType: 'Lambda',
+              name: func.FunctionName || '',
+              id: func.FunctionArn || '',
+              region,
+              url: `https://${region}.console.aws.amazon.com/lambda/home?region=${region}#/functions/${func.FunctionName}`
+            });
+          });
+        } catch (err) {
+          console.error(`Error scanning Lambda in ${region}:`, err);
         }
       }
 
@@ -669,34 +825,53 @@ export default function Home() {
 
   const groupedResources = groupResourcesByService(resources);
 
+  // Add a reference to the SVG element
+  const svgRef = useRef<ResourceMapRef>(null);
+
+  const handleExport = async () => {
+    if (svgRef.current) {
+      try {
+        await svgRef.current.exportToSvg();
+      } catch (error) {
+        console.error('Error exporting SVG:', error);
+        setError('Failed to export SVG. Please try again.');
+      }
+    }
+  };
+
   return (
-    <main className="min-h-screen bg-gray-900 text-white p-8">
-      <div className="max-w-6xl mx-auto">
-        <h1 className="text-4xl font-bold mb-8">AWS Resource Scanner</h1>
+    <main className="min-h-screen bg-gradient-to-b from-black to-zinc-900 text-white">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
+        <h1 className="text-6xl font-semibold text-center mb-4 tracking-tight bg-gradient-to-r from-white to-gray-300 text-transparent bg-clip-text">
+          AWS Resource Scanner
+        </h1>
+        <p className="text-center text-zinc-400 text-lg mb-16 max-w-2xl mx-auto">
+          Visualize and explore your AWS infrastructure with an elegant, interactive map
+        </p>
         
-        <div className="bg-gray-800 rounded-lg p-6 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div className="max-w-xl mx-auto bg-zinc-900/50 rounded-3xl p-8 mb-12 backdrop-blur-xl border border-zinc-800/50 shadow-2xl">
+          <div className="space-y-6 mb-8">
             <div>
-              <label className="block text-sm font-medium mb-2">
+              <label className="block text-sm font-medium mb-2 text-zinc-400 text-center">
                 Access Key ID
               </label>
               <input
                 type="text"
                 value={accessKeyId}
                 onChange={(e) => setAccessKeyId(e.target.value)}
-                className="w-full px-4 py-2 bg-gray-700 rounded-md focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-3 bg-black/30 rounded-xl border border-zinc-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-center placeholder:text-zinc-600"
                 placeholder="Enter Access Key ID"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">
+              <label className="block text-sm font-medium mb-2 text-zinc-400 text-center">
                 Secret Access Key
               </label>
               <input
                 type="password"
                 value={secretAccessKey}
                 onChange={(e) => setSecretAccessKey(e.target.value)}
-                className="w-full px-4 py-2 bg-gray-700 rounded-md focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-3 bg-black/30 rounded-xl border border-zinc-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-center placeholder:text-zinc-600"
                 placeholder="Enter Secret Access Key"
               />
             </div>
@@ -705,64 +880,80 @@ export default function Home() {
           <button
             onClick={scanResources}
             disabled={loading || !accessKeyId || !secretAccessKey}
-            className="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-blue-500 text-white py-4 px-6 rounded-2xl font-medium 
+                     disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300
+                     bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-600
+                     shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
           >
-            {loading ? 'Scanning...' : 'Scan Resources'}
+            {loading ? (
+              <span className="flex items-center justify-center">
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Scanning...
+              </span>
+            ) : 'Scan Resources'}
           </button>
         </div>
 
         {error && (
-          <div className="bg-red-500/20 border border-red-500 rounded-lg p-4 mb-8 text-red-500">
+          <div className="max-w-xl mx-auto bg-red-500/10 border border-red-500/20 rounded-2xl p-6 mb-12 text-red-500 backdrop-blur-xl">
             {error}
           </div>
         )}
 
         {resources.length > 0 && (
           <>
-            <div className="mb-4 flex gap-4">
+            <div className="mb-12 flex gap-4 justify-center">
               <button
                 onClick={downloadHTML}
-                className="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600"
+                className="group relative px-8 py-4 rounded-2xl font-medium transition-all duration-300
+                         bg-gradient-to-r from-zinc-800/50 to-zinc-900/50 hover:from-zinc-700/50 hover:to-zinc-800/50
+                         border border-zinc-700/50 shadow-lg hover:shadow-xl
+                         hover:scale-[1.02] active:scale-[0.98]"
               >
-                Download List Report
-              </button>
-              <button
-                onClick={downloadMapHTML}
-                className="bg-purple-500 text-white px-4 py-2 rounded-md hover:bg-purple-600"
-              >
-                Download Map Report
+                <span className="relative z-10 flex items-center gap-2">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                  </svg>
+                  List Report
+                </span>
               </button>
             </div>
 
-            <div className="bg-gray-800 rounded-lg p-6 mb-8">
-              <h2 className="text-2xl font-bold mb-4">Resource Map</h2>
-              <ResourceMap resources={resources} />
+            <div className="bg-zinc-900/50 rounded-3xl p-8 mb-12 backdrop-blur-xl border border-zinc-800/50 shadow-2xl">
+              <h2 className="text-3xl font-semibold mb-8 bg-gradient-to-r from-white to-gray-300 text-transparent bg-clip-text">Resource Map</h2>
+              <ResourceMap resources={resources} ref={svgRef} />
             </div>
 
-            <div className="bg-gray-800 rounded-lg p-6">
-              <h2 className="text-2xl font-bold mb-4">Discovered Resources</h2>
+            <div className="bg-zinc-900/50 rounded-3xl p-8 backdrop-blur-xl border border-zinc-800/50 shadow-2xl">
+              <h2 className="text-3xl font-semibold mb-8 bg-gradient-to-r from-white to-gray-300 text-transparent bg-clip-text">Discovered Resources</h2>
               
               {Object.entries(groupedResources).map(([serviceType, serviceResources]) => (
-                <div key={serviceType} className="mb-8">
-                  <h3 className="text-xl font-semibold mb-4 text-blue-400">{serviceType}</h3>
-                  <div className="grid gap-4">
+                <div key={serviceType} className="mb-12 last:mb-0">
+                  <h3 className="text-2xl font-medium mb-6 text-blue-400">{serviceType}</h3>
+                  <div className="grid gap-6">
                     {serviceResources.map((resource, index) => (
                       <div
                         key={index}
-                        className="bg-gray-700 rounded-lg p-4 hover:bg-gray-600 transition-colors"
+                        className="bg-black/30 rounded-2xl p-6 hover:bg-zinc-800/30 transition-all duration-300 transform hover:scale-[1.01] border border-zinc-800/50"
                       >
                         <div className="flex justify-between items-start">
                           <div>
-                            <h3 className="font-medium text-lg">{resource.name}</h3>
-                            <p className="text-gray-400 text-sm">Type: {resource.type}</p>
-                            <p className="text-gray-400 text-sm">Region: {resource.region}</p>
-                            <p className="text-gray-400 text-sm">ID: {resource.id}</p>
+                            <h4 className="font-medium text-xl mb-2">{resource.name}</h4>
+                            <p className="text-zinc-400 text-sm mb-1">Type: {resource.type}</p>
+                            <p className="text-zinc-400 text-sm mb-1">Region: {resource.region}</p>
+                            <p className="text-zinc-400 text-sm">ID: {resource.id}</p>
                           </div>
                           <a
                             href={resource.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="bg-blue-500 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-600"
+                            className="bg-blue-500 text-white px-6 py-3 rounded-xl text-sm 
+                                     transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]
+                                     bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-600
+                                     shadow-lg hover:shadow-xl"
                           >
                             View in Console
                           </a>
