@@ -339,6 +339,139 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
           }
         }
       }
+
+      // ECS to ECR connections
+      if (resource.type === 'ECS Task Definition') {
+        // Connect Task Definitions to ECR repositories
+        const ecrRepositories = resources.filter(r => 
+          r.type === 'ECR Repository' && 
+          r.region === resource.region
+        );
+
+        ecrRepositories.forEach(repo => {
+          const edgeId = `${resource.id}-${repo.id}-ecr`;
+          if (!addedEdges.has(edgeId)) {
+            edges.push({
+              id: edgeId,
+              source: resource.id,
+              target: repo.id,
+              label: 'Container Image',
+              ...standardEdgeOptions,
+            });
+            addedEdges.add(edgeId);
+          }
+        });
+      }
+
+      // ECS Service to Target Group connections
+      if (resource.type === 'ECS Service') {
+        const targetGroups = resources.filter(r => 
+          r.type === 'Target Group' && 
+          r.region === resource.region
+        );
+
+        targetGroups.forEach(tg => {
+          const edgeId = `${resource.id}-${tg.id}-tg`;
+          if (!addedEdges.has(edgeId)) {
+            edges.push({
+              id: edgeId,
+              source: resource.id,
+              target: tg.id,
+              label: 'Service Registration',
+              ...standardEdgeOptions,
+            });
+            addedEdges.add(edgeId);
+          }
+        });
+      }
+
+      // Lambda to EventBridge Rules
+      if (resource.type === 'EventBridge Rule') {
+        const lambdaFunctions = resources.filter(r => 
+          r.type === 'Lambda Function' && 
+          r.region === resource.region
+        );
+
+        lambdaFunctions.forEach(lambda => {
+          const edgeId = `${resource.id}-${lambda.id}-event`;
+          if (!addedEdges.has(edgeId)) {
+            edges.push({
+              id: edgeId,
+              source: resource.id,
+              target: lambda.id,
+              label: 'Trigger',
+              ...standardEdgeOptions,
+            });
+            addedEdges.add(edgeId);
+          }
+        });
+      }
+
+      // ECS Service to Cluster connections
+      if (resource.type === 'ECS Service') {
+        const cluster = resources.find(r => 
+          r.type === 'ECS Cluster' && 
+          resource.id.includes(r.id)
+        );
+
+        if (cluster) {
+          const edgeId = `${cluster.id}-${resource.id}-cluster`;
+          if (!addedEdges.has(edgeId)) {
+            edges.push({
+              id: edgeId,
+              source: cluster.id,
+              target: resource.id,
+              label: 'Service',
+              ...standardEdgeOptions,
+            });
+            addedEdges.add(edgeId);
+          }
+        }
+      }
+
+      // Task Definition to Service connections
+      if (resource.type === 'ECS Service') {
+        const taskDefs = resources.filter(r => 
+          r.type === 'ECS Task Definition' && 
+          r.region === resource.region
+        );
+
+        taskDefs.forEach(taskDef => {
+          const edgeId = `${resource.id}-${taskDef.id}-taskdef`;
+          if (!addedEdges.has(edgeId)) {
+            edges.push({
+              id: edgeId,
+              source: resource.id,
+              target: taskDef.id,
+              label: 'Task Definition',
+              ...standardEdgeOptions,
+            });
+            addedEdges.add(edgeId);
+          }
+        });
+      }
+
+      // Lambda to API Gateway (if exists)
+      if (resource.type === 'Lambda Function') {
+        const apiGateways = resources.filter(r => 
+          r.type === 'API Gateway' && 
+          r.region === resource.region
+        );
+
+        apiGateways.forEach(api => {
+          const edgeId = `${api.id}-${resource.id}-api`;
+          if (!addedEdges.has(edgeId)) {
+            edges.push({
+              id: edgeId,
+              source: api.id,
+              target: resource.id,
+              label: 'Integration',
+              ...standardEdgeOptions,
+            });
+            addedEdges.add(edgeId);
+          }
+        });
+      }
     });
 
     return edges;
