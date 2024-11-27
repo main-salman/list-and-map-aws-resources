@@ -840,38 +840,41 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-black to-zinc-900 text-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
-        <h1 className="text-6xl font-semibold text-center mb-4 tracking-tight bg-gradient-to-r from-white to-gray-300 text-transparent bg-clip-text">
-          AWS Resource Scanner
-        </h1>
-        <p className="text-center text-zinc-400 text-lg mb-16 max-w-2xl mx-auto">
-          Visualize and explore your AWS infrastructure with an elegant, interactive map
-        </p>
+    <main className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 text-white">
+      <div className="container mx-auto flex flex-col items-center justify-center px-4 py-24">
+        <div className="text-center max-w-4xl mx-auto mb-24 relative">
+          <div className="absolute inset-0 blur-3xl bg-gradient-to-r from-blue-500/30 to-purple-500/30 -z-10"></div>
+          <h1 className="text-7xl font-bold mb-8 tracking-tight bg-gradient-to-r from-blue-400 to-purple-400 text-transparent bg-clip-text">
+            AWS Resource Scanner
+          </h1>
+          <p className="text-2xl text-blue-200 font-light">
+            Visualize and explore your AWS infrastructure with an elegant, interactive map
+          </p>
+        </div>
         
-        <div className="max-w-xl mx-auto bg-zinc-900/50 rounded-3xl p-8 mb-12 backdrop-blur-xl border border-zinc-800/50 shadow-2xl">
-          <div className="space-y-6 mb-8">
+        <div className="w-full max-w-xl bg-white/10 rounded-3xl p-10 mb-12 backdrop-blur-2xl border border-white/20 shadow-[0_0_60px_-15px_rgba(0,0,0,0.5)]">
+          <div className="space-y-8 mb-8">
             <div>
-              <label className="block text-sm font-medium mb-2 text-zinc-400 text-center">
+              <label className="block text-lg font-medium mb-3 text-blue-200 text-center">
                 Access Key ID
               </label>
               <input
                 type="text"
                 value={accessKeyId}
                 onChange={(e) => setAccessKeyId(e.target.value)}
-                className="w-full px-4 py-3 bg-black/30 rounded-xl border border-zinc-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-center placeholder:text-zinc-600"
+                className="w-full px-6 py-4 bg-white/5 rounded-2xl border-2 border-white/10 focus:border-blue-400 focus:ring-0 transition-all text-center text-lg placeholder:text-white/30"
                 placeholder="Enter Access Key ID"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2 text-zinc-400 text-center">
+              <label className="block text-lg font-medium mb-3 text-blue-200 text-center">
                 Secret Access Key
               </label>
               <input
                 type="password"
                 value={secretAccessKey}
                 onChange={(e) => setSecretAccessKey(e.target.value)}
-                className="w-full px-4 py-3 bg-black/30 rounded-xl border border-zinc-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-center placeholder:text-zinc-600"
+                className="w-full px-6 py-4 bg-white/5 rounded-2xl border-2 border-white/10 focus:border-blue-400 focus:ring-0 transition-all text-center text-lg placeholder:text-white/30"
                 placeholder="Enter Secret Access Key"
               />
             </div>
@@ -880,14 +883,14 @@ export default function Home() {
           <button
             onClick={scanResources}
             disabled={loading || !accessKeyId || !secretAccessKey}
-            className="w-full bg-blue-500 text-white py-4 px-6 rounded-2xl font-medium 
+            className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white py-5 px-8 rounded-2xl font-semibold text-lg
                      disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300
-                     bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-600
-                     shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+                     shadow-[0_10px_40px_-15px_rgba(79,70,229,0.5)] hover:shadow-[0_20px_60px_-15px_rgba(79,70,229,0.5)]
+                     hover:translate-y-[-2px] active:translate-y-[1px]"
           >
             {loading ? (
               <span className="flex items-center justify-center">
-                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <svg className="animate-spin -ml-1 mr-3 h-6 w-6 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
@@ -898,7 +901,7 @@ export default function Home() {
         </div>
 
         {error && (
-          <div className="max-w-xl mx-auto bg-red-500/10 border border-red-500/20 rounded-2xl p-6 mb-12 text-red-500 backdrop-blur-xl">
+          <div className="max-w-xl mx-auto bg-red-500/20 border-2 border-red-500/30 rounded-2xl p-6 mb-12 backdrop-blur-xl text-red-200 text-center font-medium">
             {error}
           </div>
         )}
@@ -908,52 +911,56 @@ export default function Home() {
             <div className="mb-12 flex gap-4 justify-center">
               <button
                 onClick={downloadHTML}
-                className="group relative px-8 py-4 rounded-2xl font-medium transition-all duration-300
-                         bg-gradient-to-r from-zinc-800/50 to-zinc-900/50 hover:from-zinc-700/50 hover:to-zinc-800/50
-                         border border-zinc-700/50 shadow-lg hover:shadow-xl
-                         hover:scale-[1.02] active:scale-[0.98]"
+                className="px-8 py-4 rounded-2xl font-semibold text-lg transition-all duration-300
+                         bg-gradient-to-r from-purple-500 to-pink-500 
+                         shadow-[0_10px_40px_-15px_rgba(168,85,247,0.5)] hover:shadow-[0_20px_60px_-15px_rgba(168,85,247,0.5)]
+                         hover:translate-y-[-2px] active:translate-y-[1px]"
               >
-                <span className="relative z-10 flex items-center gap-2">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <span className="flex items-center gap-3">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                   </svg>
-                  List Report
+                  Download Report
                 </span>
               </button>
             </div>
 
-            <div className="bg-zinc-900/50 rounded-3xl p-8 mb-12 backdrop-blur-xl border border-zinc-800/50 shadow-2xl">
-              <h2 className="text-3xl font-semibold mb-8 bg-gradient-to-r from-white to-gray-300 text-transparent bg-clip-text">Resource Map</h2>
+            <div className="w-full bg-white/10 rounded-3xl p-10 mb-12 backdrop-blur-2xl border border-white/20 shadow-[0_0_60px_-15px_rgba(0,0,0,0.5)]">
+              <h2 className="text-4xl font-bold mb-10 bg-gradient-to-r from-blue-400 to-purple-400 text-transparent bg-clip-text">
+                Resource Map
+              </h2>
               <ResourceMap resources={resources} ref={svgRef} />
             </div>
 
-            <div className="bg-zinc-900/50 rounded-3xl p-8 backdrop-blur-xl border border-zinc-800/50 shadow-2xl">
-              <h2 className="text-3xl font-semibold mb-8 bg-gradient-to-r from-white to-gray-300 text-transparent bg-clip-text">Discovered Resources</h2>
+            <div className="w-full bg-white/10 rounded-3xl p-10 backdrop-blur-2xl border border-white/20 shadow-[0_0_60px_-15px_rgba(0,0,0,0.5)]">
+              <h2 className="text-4xl font-bold mb-10 bg-gradient-to-r from-blue-400 to-purple-400 text-transparent bg-clip-text">
+                Discovered Resources
+              </h2>
               
               {Object.entries(groupedResources).map(([serviceType, serviceResources]) => (
                 <div key={serviceType} className="mb-12 last:mb-0">
-                  <h3 className="text-2xl font-medium mb-6 text-blue-400">{serviceType}</h3>
+                  <h3 className="text-2xl font-semibold mb-6 text-blue-300">{serviceType}</h3>
                   <div className="grid gap-6">
                     {serviceResources.map((resource, index) => (
                       <div
                         key={index}
-                        className="bg-black/30 rounded-2xl p-6 hover:bg-zinc-800/30 transition-all duration-300 transform hover:scale-[1.01] border border-zinc-800/50"
+                        className="bg-white/5 rounded-2xl p-8 hover:bg-white/10 transition-all duration-300 border border-white/10
+                                 hover:border-white/20 hover:shadow-[0_10px_40px_-15px_rgba(0,0,0,0.3)]"
                       >
                         <div className="flex justify-between items-start">
                           <div>
-                            <h4 className="font-medium text-xl mb-2">{resource.name}</h4>
-                            <p className="text-zinc-400 text-sm mb-1">Type: {resource.type}</p>
-                            <p className="text-zinc-400 text-sm mb-1">Region: {resource.region}</p>
-                            <p className="text-zinc-400 text-sm">ID: {resource.id}</p>
+                            <h4 className="font-semibold text-xl mb-3 text-blue-200">{resource.name}</h4>
+                            <p className="text-blue-200/80 text-base mb-2">Type: {resource.type}</p>
+                            <p className="text-blue-200/80 text-base mb-2">Region: {resource.region}</p>
+                            <p className="text-blue-200/80 text-base">ID: {resource.id}</p>
                           </div>
                           <a
                             href={resource.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="bg-blue-500 text-white px-6 py-3 rounded-xl text-sm 
-                                     transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]
-                                     bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-600
-                                     shadow-lg hover:shadow-xl"
+                            className="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-6 py-3 rounded-xl text-base font-semibold
+                                     transition-all duration-300 hover:translate-y-[-2px] active:translate-y-[1px]
+                                     shadow-[0_10px_40px_-15px_rgba(79,70,229,0.5)] hover:shadow-[0_20px_60px_-15px_rgba(79,70,229,0.5)]"
                           >
                             View in Console
                           </a>

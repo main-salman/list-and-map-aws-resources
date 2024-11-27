@@ -268,11 +268,12 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
     <div 
       ref={flowRef} 
       style={{ 
-        width: '100%', 
-        height: '600px', 
+        width: '1200px', 
+        height: '1200px',
         background: 'rgb(24,24,27)',
         borderRadius: '16px',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        margin: '0 auto'
       }}
     >
       <ReactFlow
@@ -309,7 +310,12 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
 
 const ResourceMap = forwardRef((props: ResourceMapProps, ref) => {
   return (
-    <div style={{ width: '100%', height: '600px', background: 'white' }}>
+    <div style={{ 
+      width: '1200px', 
+      height: '1200px',
+      background: 'white',
+      margin: '0 auto'
+    }}>
       <ReactFlowProvider>
         <FlowWithDownload {...props} ref={ref} />
       </ReactFlowProvider>
