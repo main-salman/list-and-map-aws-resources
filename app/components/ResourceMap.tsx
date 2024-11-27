@@ -271,6 +271,74 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
           });
         });
       }
+
+      // Internet Gateway to Load Balancer connections
+      if (resource.type === 'Application Load Balancer') {
+        // Find IGW in the same region
+        const igw = resources.find(r => 
+          r.type === 'Internet Gateway' && 
+          r.region === resource.region
+        );
+
+        if (igw) {
+          const edgeId = `${igw.id}-${resource.id}-igw`;
+          if (!addedEdges.has(edgeId)) {
+            edges.push({
+              id: edgeId,
+              source: igw.id,
+              target: resource.id,
+              label: 'Internet Access',
+              ...standardEdgeOptions,
+            });
+            addedEdges.add(edgeId);
+          }
+        }
+      }
+
+      // NAT Gateway to Private Resources
+      if (resource.type === 'NAT Gateway') {
+        // Connect NAT Gateway to private Load Balancers
+        const privateLoadBalancers = resources.filter(r => 
+          r.type === 'Application Load Balancer' && 
+          r.region === resource.region
+        );
+
+        privateLoadBalancers.forEach(lb => {
+          const edgeId = `${resource.id}-${lb.id}-nat`;
+          if (!addedEdges.has(edgeId)) {
+            edges.push({
+              id: edgeId,
+              source: resource.id,
+              target: lb.id,
+              label: 'NAT Access',
+              ...standardEdgeOptions,
+            });
+            addedEdges.add(edgeId);
+          }
+        });
+      }
+
+      // Internet Gateway to NAT Gateway
+      if (resource.type === 'NAT Gateway') {
+        const igw = resources.find(r => 
+          r.type === 'Internet Gateway' && 
+          r.region === resource.region
+        );
+
+        if (igw) {
+          const edgeId = `${igw.id}-${resource.id}-igw-nat`;
+          if (!addedEdges.has(edgeId)) {
+            edges.push({
+              id: edgeId,
+              source: igw.id,
+              target: resource.id,
+              label: 'Internet Access',
+              ...standardEdgeOptions,
+            });
+            addedEdges.add(edgeId);
+          }
+        }
+      }
     });
 
     return edges;
