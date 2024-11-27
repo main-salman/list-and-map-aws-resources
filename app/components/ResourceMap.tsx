@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, forwardRef, useImperativeHandle, useRef } from 'react';
+import { useCallback, forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import ReactFlow, {
   Node,
   Edge,
@@ -11,6 +11,7 @@ import ReactFlow, {
   MarkerType,
   ReactFlowProvider,
   useReactFlow,
+  applyNodeChanges,
 } from 'reactflow';
 import { toPng } from 'html-to-image';
 import 'reactflow/dist/style.css';
@@ -52,12 +53,91 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
   const { resources } = props;
   const flowRef = useRef<HTMLDivElement>(null);
   const { toSVG } = useReactFlow();
+  const [selectedEdge, setSelectedEdge] = useState<string | null>(null);
 
   const standardMarker = {
     type: MarkerType.Arrow,
-    width: 20,
-    height: 20
+    width: 12,
+    height: 12
   };
+
+  const createNodes = useCallback(() => {
+    const nodes: Node[] = [];
+    const levelSpacing = 200;
+    const nodeSpacing = 150;
+    const nodeWidth = 200;
+    const nodeHeight = 100;
+
+    // Define service hierarchy levels with better distribution
+    const hierarchyLevels = {
+      'Route 53': 0,           // DNS Layer
+      'ACM': 1,               // Security Layer
+      'ELB': 2,               // Load Balancer Layer
+      'EC2': 3,               // Compute Layer - Left
+      'ECS': 3,               // Compute Layer - Center
+      'Lambda': 3,            // Compute Layer - Right
+      'ECR': 4,               // Storage Layer - Left
+      'RDS': 4,               // Storage Layer - Center
+      'S3': 4,                // Storage Layer - Right
+      'IAM': 5,               // Management Layer - Left
+      'EventBridge': 5        // Management Layer - Right
+    };
+
+    // Group resources by service type
+    const serviceGroups = resources.reduce((acc, resource) => {
+      if (!acc[resource.serviceType]) {
+        acc[resource.serviceType] = [];
+      }
+      acc[resource.serviceType].push(resource);
+      return acc;
+    }, {} as Record<string, AWSResource[]>);
+
+    // Calculate positions for each service group
+    Object.entries(serviceGroups).forEach(([serviceType, serviceResources]) => {
+      const level = hierarchyLevels[serviceType as keyof typeof hierarchyLevels] || 0;
+      const y = level * levelSpacing;
+      
+      // Calculate total width needed for this level
+      const totalWidth = serviceResources.length * (nodeWidth + nodeSpacing) - nodeSpacing;
+      const startX = -(totalWidth / 2);
+
+      serviceResources.forEach((resource, index) => {
+        const x = startX + (index * (nodeWidth + nodeSpacing));
+        nodes.push({
+          id: resource.id,
+          data: {
+            label: (
+              <div 
+                className="text-sm cursor-pointer font-medium" 
+                onClick={() => window.open(resource.url, '_blank')}
+              >
+                <div className="font-semibold mb-1 truncate max-w-[180px]">{resource.name || resource.id}</div>
+                <div className="text-zinc-600 truncate max-w-[180px]">{resource.type}</div>
+                <div className="text-zinc-500 text-xs mt-1">{resource.region}</div>
+              </div>
+            ),
+          },
+          position: { x, y },
+          draggable: true,
+          style: {
+            background: serviceColors[resource.serviceType as keyof typeof serviceColors] || 'white',
+            border: '1px solid rgba(0,0,0,0.1)',
+            borderRadius: '12px',
+            padding: '12px',
+            width: nodeWidth,
+            height: nodeHeight,
+            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+            transition: 'all 0.2s ease',
+            cursor: 'move',
+          },
+        });
+      });
+    });
+
+    return nodes;
+  }, [resources]);
+
+  const [nodes, setNodes] = useState(() => createNodes());
 
   useImperativeHandle(ref, () => ({
     exportToSvg: async () => {
@@ -84,74 +164,11 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
     }
   }));
 
-  const createNodes = useCallback(() => {
-    const nodes: Node[] = [];
-    const servicePositions: Record<string, { x: number, y: number, count: number }> = {};
-    const spacing = 300;
-
-    // Group resources by service type
-    const serviceGroups = resources.reduce((acc, resource) => {
-      if (!acc[resource.serviceType]) {
-        acc[resource.serviceType] = [];
-      }
-      acc[resource.serviceType].push(resource);
-      return acc;
-    }, {} as Record<string, AWSResource[]>);
-
-    // Calculate initial positions for each service group
-    Object.keys(serviceGroups).forEach((serviceType, index) => {
-      servicePositions[serviceType] = {
-        x: index * spacing,
-        y: 100,
-        count: 0
-      };
-    });
-
-    resources.forEach(resource => {
-      const pos = servicePositions[resource.serviceType];
-      nodes.push({
-        id: resource.id,
-        data: {
-          label: (
-            <div 
-              className="text-sm cursor-pointer font-medium" 
-              onClick={() => window.open(resource.url, '_blank')}
-            >
-              <div className="font-semibold mb-1">{resource.name || resource.id}</div>
-              <div className="text-zinc-600">{resource.type}</div>
-              <div className="text-zinc-500 text-xs mt-1">{resource.region}</div>
-            </div>
-          ),
-        },
-        position: { x: pos.x, y: pos.y + (pos.count * 150) },
-        style: {
-          background: serviceColors[resource.serviceType as keyof typeof serviceColors] || 'white',
-          border: '1px solid rgba(0,0,0,0.1)',
-          borderRadius: '12px',
-          padding: '12px',
-          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
-          transition: 'all 0.2s ease',
-          cursor: 'pointer',
-        },
-      });
-      pos.count++;
-    });
-
-    return nodes;
-  }, [resources]);
-
   const createEdges = useCallback(() => {
     const edges: Edge[] = [];
     const addedEdges = new Set<string>();
 
-    // Define a standard marker configuration with smaller arrows
-    const standardMarker = {
-      type: MarkerType.Arrow,
-      width: 12,
-      height: 12
-    };
-
-    // Define standard edge options
+    // Define standard edge options with conditional styling
     const standardEdgeOptions = {
       type: 'smoothstep',
       animated: true,
@@ -166,7 +183,17 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
         offset: 25,
         borderRadius: 20,
       },
+      className: 'cursor-pointer',
     };
+
+    // Helper function to create edge with selected state
+    const createEdgeWithSelection = (edge: Edge) => ({
+      ...edge,
+      style: {
+        ...standardEdgeOptions.style,
+        stroke: edge.id === selectedEdge ? '#ef4444' : '#94a3b8', // Red when selected
+      },
+    });
 
     resources.forEach(resource => {
       // Security Group connections
@@ -174,13 +201,13 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
         resource.relationships.securityGroups.forEach(sgId => {
           const edgeId = `${resource.id}-${sgId}-sg`;
           if (!addedEdges.has(edgeId)) {
-            edges.push({
+            edges.push(createEdgeWithSelection({
               id: edgeId,
               source: resource.id,
               target: sgId,
               label: 'Security Group',
               ...standardEdgeOptions,
-            });
+            }));
             addedEdges.add(edgeId);
           }
         });
@@ -189,13 +216,14 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
       // Load Balancer connections
       if (resource.type === 'Target Group' && resource.relationships?.loadBalancer) {
         const edgeId = `${resource.relationships.loadBalancer}-${resource.id}-tg`;
-        edges.push({
+        edges.push(createEdgeWithSelection({
           id: edgeId,
           source: resource.relationships.loadBalancer,
           target: resource.id,
           label: 'Target Group',
           ...standardEdgeOptions,
-        });
+        }));
+        addedEdges.add(edgeId);
       }
 
       // Route 53 Record connections to Load Balancers
@@ -215,13 +243,13 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
         loadBalancers.forEach(loadBalancer => {
           const edgeId = `${resource.id}-${loadBalancer.id}-dns`;
           if (!addedEdges.has(edgeId)) {
-            edges.push({
+            edges.push(createEdgeWithSelection({
               id: edgeId,
               source: resource.id,
               target: loadBalancer.id,
               label: 'DNS Alias',
               ...standardEdgeOptions,
-            });
+            }));
             addedEdges.add(edgeId);
           }
         });
@@ -237,13 +265,13 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
         if (hostedZone) {
           const edgeId = `${hostedZone.id}-${resource.id}-zone`;
           if (!addedEdges.has(edgeId)) {
-            edges.push({
+            edges.push(createEdgeWithSelection({
               id: edgeId,
               source: hostedZone.id,
               target: resource.id,
               label: 'Record',
               ...standardEdgeOptions,
-            });
+            }));
             addedEdges.add(edgeId);
           }
         }
@@ -252,26 +280,28 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
       // Certificate connections
       if (resource.type === 'ACM Certificate' && resource.relationships?.loadBalancer) {
         const edgeId = `${resource.id}-${resource.relationships.loadBalancer}-cert`;
-        edges.push({
+        edges.push(createEdgeWithSelection({
           id: edgeId,
           source: resource.id,
           target: resource.relationships.loadBalancer,
           label: 'SSL/TLS',
           ...standardEdgeOptions,
-        });
+        }));
+        addedEdges.add(edgeId);
       }
 
       // Volume connections
       if (resource.relationships?.volumes) {
         resource.relationships.volumes.forEach(volumeId => {
           const edgeId = `${resource.id}-${volumeId}-vol`;
-          edges.push({
+          edges.push(createEdgeWithSelection({
             id: edgeId,
             source: resource.id,
             target: volumeId,
             label: 'Volume',
             ...standardEdgeOptions,
-          });
+          }));
+          addedEdges.add(edgeId);
         });
       }
 
@@ -286,13 +316,13 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
         if (igw) {
           const edgeId = `${igw.id}-${resource.id}-igw`;
           if (!addedEdges.has(edgeId)) {
-            edges.push({
+            edges.push(createEdgeWithSelection({
               id: edgeId,
               source: igw.id,
               target: resource.id,
               label: 'Internet Access',
               ...standardEdgeOptions,
-            });
+            }));
             addedEdges.add(edgeId);
           }
         }
@@ -309,13 +339,13 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
         privateLoadBalancers.forEach(lb => {
           const edgeId = `${resource.id}-${lb.id}-nat`;
           if (!addedEdges.has(edgeId)) {
-            edges.push({
+            edges.push(createEdgeWithSelection({
               id: edgeId,
               source: resource.id,
               target: lb.id,
               label: 'NAT Access',
               ...standardEdgeOptions,
-            });
+            }));
             addedEdges.add(edgeId);
           }
         });
@@ -331,39 +361,16 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
         if (igw) {
           const edgeId = `${igw.id}-${resource.id}-igw-nat`;
           if (!addedEdges.has(edgeId)) {
-            edges.push({
+            edges.push(createEdgeWithSelection({
               id: edgeId,
               source: igw.id,
               target: resource.id,
               label: 'Internet Access',
               ...standardEdgeOptions,
-            });
+            }));
             addedEdges.add(edgeId);
           }
         }
-      }
-
-      // ECS to ECR connections
-      if (resource.type === 'ECS Task Definition') {
-        // Connect Task Definitions to ECR repositories
-        const ecrRepositories = resources.filter(r => 
-          r.type === 'ECR Repository' && 
-          r.region === resource.region
-        );
-
-        ecrRepositories.forEach(repo => {
-          const edgeId = `${resource.id}-${repo.id}-ecr`;
-          if (!addedEdges.has(edgeId)) {
-            edges.push({
-              id: edgeId,
-              source: resource.id,
-              target: repo.id,
-              label: 'Container Image',
-              ...standardEdgeOptions,
-            });
-            addedEdges.add(edgeId);
-          }
-        });
       }
 
       // ECS Service to Target Group connections
@@ -376,13 +383,13 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
         targetGroups.forEach(tg => {
           const edgeId = `${resource.id}-${tg.id}-tg`;
           if (!addedEdges.has(edgeId)) {
-            edges.push({
+            edges.push(createEdgeWithSelection({
               id: edgeId,
               source: resource.id,
               target: tg.id,
               label: 'Service Registration',
               ...standardEdgeOptions,
-            });
+            }));
             addedEdges.add(edgeId);
           }
         });
@@ -398,13 +405,13 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
         lambdaFunctions.forEach(lambda => {
           const edgeId = `${resource.id}-${lambda.id}-event`;
           if (!addedEdges.has(edgeId)) {
-            edges.push({
+            edges.push(createEdgeWithSelection({
               id: edgeId,
               source: resource.id,
               target: lambda.id,
               label: 'Trigger',
               ...standardEdgeOptions,
-            });
+            }));
             addedEdges.add(edgeId);
           }
         });
@@ -420,38 +427,16 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
         if (cluster) {
           const edgeId = `${cluster.id}-${resource.id}-cluster`;
           if (!addedEdges.has(edgeId)) {
-            edges.push({
+            edges.push(createEdgeWithSelection({
               id: edgeId,
               source: cluster.id,
               target: resource.id,
               label: 'Service',
               ...standardEdgeOptions,
-            });
+            }));
             addedEdges.add(edgeId);
           }
         }
-      }
-
-      // Task Definition to Service connections
-      if (resource.type === 'ECS Service') {
-        const taskDefs = resources.filter(r => 
-          r.type === 'ECS Task Definition' && 
-          r.region === resource.region
-        );
-
-        taskDefs.forEach(taskDef => {
-          const edgeId = `${resource.id}-${taskDef.id}-taskdef`;
-          if (!addedEdges.has(edgeId)) {
-            edges.push({
-              id: edgeId,
-              source: resource.id,
-              target: taskDef.id,
-              label: 'Task Definition',
-              ...standardEdgeOptions,
-            });
-            addedEdges.add(edgeId);
-          }
-        });
       }
 
       // Lambda to API Gateway (if exists)
@@ -464,13 +449,13 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
         apiGateways.forEach(api => {
           const edgeId = `${api.id}-${resource.id}-api`;
           if (!addedEdges.has(edgeId)) {
-            edges.push({
+            edges.push(createEdgeWithSelection({
               id: edgeId,
               source: api.id,
               target: resource.id,
               label: 'Integration',
               ...standardEdgeOptions,
-            });
+            }));
             addedEdges.add(edgeId);
           }
         });
@@ -478,13 +463,28 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
     });
 
     return edges;
-  }, [resources]);
+  }, [resources, selectedEdge]);
+
+  // Add edge click handler
+  const onEdgeClick = useCallback((event: React.MouseEvent, edge: Edge) => {
+    setSelectedEdge(edge.id === selectedEdge ? null : edge.id);
+  }, [selectedEdge]);
+
+  // Add onNodesChange handler to ReactFlow component
+  const onNodesChange = useCallback(
+    (changes: any) => {
+      setNodes((nds) => {
+        return applyNodeChanges(changes, nds);
+      });
+    },
+    [setNodes]
+  );
 
   return (
     <div 
       ref={flowRef} 
       style={{ 
-        width: '1200px', 
+        width: '2000px', 
         height: '1200px',
         background: 'rgb(24,24,27)',
         borderRadius: '16px',
@@ -493,11 +493,13 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
       }}
     >
       <ReactFlow
-        nodes={createNodes()}
+        nodes={nodes}
         edges={createEdges()}
+        onNodesChange={onNodesChange}
         fitView
         minZoom={0.1}
         maxZoom={4}
+        onEdgeClick={onEdgeClick}
         defaultEdgeOptions={{
           type: 'smoothstep',
           style: { 
@@ -533,7 +535,7 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
 const ResourceMap = forwardRef((props: ResourceMapProps, ref) => {
   return (
     <div style={{ 
-      width: '1200px', 
+      width: '2000px', 
       height: '1200px',
       background: 'white',
       margin: '0 auto'

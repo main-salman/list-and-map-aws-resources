@@ -21,7 +21,7 @@ import {
   Route53Client, ListHostedZonesCommand, ListResourceRecordSetsCommand
 } from '@aws-sdk/client-route-53';
 import {
-  ECSClient, ListClustersCommand, ListTaskDefinitionsCommand, ListServicesCommand
+  ECSClient, ListClustersCommand, ListServicesCommand
 } from '@aws-sdk/client-ecs';
 import { 
   ElasticLoadBalancingV2Client, 
@@ -227,19 +227,6 @@ export default function Home() {
               });
             });
           }
-
-          // Get Task Definitions
-          const taskDefs = await ecsClient.send(new ListTaskDefinitionsCommand({}));
-          taskDefs.taskDefinitionArns?.forEach(taskDefArn => {
-            discoveredResources.push({
-              type: 'ECS Task Definition',
-              serviceType: 'ECS',
-              name: taskDefArn.split('/').pop() || '',
-              id: taskDefArn,
-              region,
-              url: `https://${region}.console.aws.amazon.com/ecs/home?region=${region}#/taskDefinitions/${taskDefArn.split('/').pop()}`
-            });
-          });
         } catch (err) {
           console.error(`Error scanning ECS in ${region}:`, err);
         }
@@ -390,23 +377,6 @@ export default function Home() {
           });
         } catch (err) {
           console.error(`Error scanning Internet Gateways in ${region}:`, err);
-        }
-
-        // Route Tables
-        try {
-          const routeTables = await ec2Client.send(new DescribeRouteTablesCommand({}));
-          routeTables.RouteTables?.forEach(rt => {
-            discoveredResources.push({
-              type: 'Route Table',
-              serviceType: 'EC2',
-              name: rt.Tags?.find(tag => tag.Key === 'Name')?.Value || rt.RouteTableId || '',
-              id: rt.RouteTableId || '',
-              region,
-              url: `https://${region}.console.aws.amazon.com/vpc/home?region=${region}#RouteTableDetails:RouteTableId=${rt.RouteTableId}`
-            });
-          });
-        } catch (err) {
-          console.error(`Error scanning Route Tables in ${region}:`, err);
         }
 
         // ECR Repositories
