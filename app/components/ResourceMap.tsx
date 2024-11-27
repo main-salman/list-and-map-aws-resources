@@ -51,6 +51,7 @@ const serviceColors = {
 const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
   const { resources } = props;
   const flowRef = useRef<HTMLDivElement>(null);
+  const { toSVG } = useReactFlow();
 
   const standardMarker = {
     type: MarkerType.Arrow,
@@ -60,23 +61,25 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
 
   useImperativeHandle(ref, () => ({
     exportToSvg: async () => {
-      if (flowRef.current) {
-        try {
-          const dataUrl = await toPng(flowRef.current, {
-            quality: 1,
-            backgroundColor: 'white',
-            width: flowRef.current.offsetWidth,
-            height: flowRef.current.offsetHeight,
-          });
-          
-          // Create a temporary link element
-          const link = document.createElement('a');
-          link.download = 'aws-resource-map.png';
-          link.href = dataUrl;
-          link.click();
-        } catch (error) {
-          console.error('Error exporting image:', error);
-        }
+      try {
+        // Get the SVG string using ReactFlow's built-in method
+        const svg = await toSVG();
+        
+        // Create a blob from the SVG string
+        const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+        
+        // Create and trigger download
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `aws-resource-map-${new Date().toISOString()}.svg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error('Error exporting SVG:', error);
+        throw error;
       }
     }
   }));

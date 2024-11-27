@@ -37,8 +37,6 @@ import {
   DescribeCertificateCommand
 } from "@aws-sdk/client-acm";
 
-import { downloadSVG } from '@/utils/svgExport';
-
 import {
   ECRClient,
   DescribeRepositoriesCommand
@@ -79,10 +77,6 @@ interface AWSResource {
     certificate?: string;
     instances?: string[];
   };
-}
-
-interface ResourceMapRef {
-  exportToSvg: () => Promise<void>;
 }
 
 export default function Home() {
@@ -586,158 +580,6 @@ export default function Home() {
     }
   };
 
-  const downloadMapHTML = () => {
-    const groupedResources = groupResourcesByService(resources);
-    
-    let html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>AWS Resources Map</title>
-        <script src="https://unpkg.com/d3@7.8.5/dist/d3.min.js"></script>
-        <style>
-          body { 
-            font-family: Arial, sans-serif; 
-            margin: 0; 
-            padding: 0;
-            background: #1a1a1a;
-            color: white;
-          }
-          #map {
-            width: 100vw;
-            height: 100vh;
-          }
-          .node {
-            fill: #2a2a2a;
-            stroke: #4a4a4a;
-            rx: 6;
-            ry: 6;
-          }
-          .node text {
-            fill: white;
-            text-anchor: middle;
-            font-size: 12px;
-          }
-          .link {
-            stroke: #4a4a4a;
-            stroke-width: 2px;
-          }
-          .service-label {
-            fill: #6b7280;
-            font-size: 14px;
-            font-weight: bold;
-          }
-        </style>
-      </head>
-      <body>
-        <svg id="map"></svg>
-        <script>
-          const resources = ${JSON.stringify(resources)};
-          const width = window.innerWidth;
-          const height = window.innerHeight;
-          
-          const svg = d3.select('#map')
-            .attr('width', width)
-            .attr('height', height);
-            
-          const simulation = d3.forceSimulation()
-            .force('link', d3.forceLink().id(d => d.id))
-            .force('charge', d3.forceManyBody().strength(-1000))
-            .force('center', d3.forceCenter(width / 2, height / 2))
-            .force('collision', d3.forceCollide().radius(80));
-          
-          const nodes = resources.map(r => ({...r}));
-          const links = [];
-          
-          // Create links between resources of the same service
-          resources.forEach((source, i) => {
-            resources.forEach((target, j) => {
-              if (i < j && source.serviceType === target.serviceType) {
-                links.push({
-                  source: source.id,
-                  target: target.id
-                });
-              }
-            });
-          });
-          
-          const link = svg.append('g')
-            .selectAll('line')
-            .data(links)
-            .join('line')
-            .attr('class', 'link');
-          
-          const node = svg.append('g')
-            .selectAll('g')
-            .data(nodes)
-            .join('g');
-          
-          node.append('rect')
-            .attr('class', 'node')
-            .attr('width', 160)
-            .attr('height', 60)
-            .attr('x', -80)
-            .attr('y', -30);
-          
-          node.append('text')
-            .attr('dy', '-10')
-            .text(d => d.name || d.id);
-          
-          node.append('text')
-            .attr('dy', '10')
-            .text(d => d.type);
-          
-          node.append('text')
-            .attr('dy', '30')
-            .attr('class', 'service-label')
-            .text(d => d.serviceType);
-          
-          node.append('title')
-            .text(d => d.url);
-          
-          node.on('click', (event, d) => {
-            window.open(d.url, '_blank');
-          });
-          
-          simulation
-            .nodes(nodes)
-            .on('tick', () => {
-              link
-                .attr('x1', d => d.source.x)
-                .attr('y1', d => d.source.y)
-                .attr('x2', d => d.target.x)
-                .attr('y2', d => d.target.y);
-              
-              node
-                .attr('transform', d => \`translate(\${d.x},\${d.y})\`);
-            });
-          
-          simulation.force('link').links(links);
-          
-          // Add zoom behavior
-          const zoom = d3.zoom()
-            .scaleExtent([0.1, 4])
-            .on('zoom', (event) => {
-              svg.selectAll('g').attr('transform', event.transform);
-            });
-          
-          svg.call(zoom);
-        </script>
-      </body>
-      </html>
-    `;
-
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `aws-resources-map-${new Date().toISOString()}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
   const downloadHTML = () => {
     const groupedResources = groupResourcesByService(resources);
     
@@ -824,20 +666,6 @@ export default function Home() {
   };
 
   const groupedResources = groupResourcesByService(resources);
-
-  // Add a reference to the SVG element
-  const svgRef = useRef<ResourceMapRef>(null);
-
-  const handleExport = async () => {
-    if (svgRef.current) {
-      try {
-        await svgRef.current.exportToSvg();
-      } catch (error) {
-        console.error('Error exporting SVG:', error);
-        setError('Failed to export SVG. Please try again.');
-      }
-    }
-  };
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 text-white">
@@ -929,7 +757,7 @@ export default function Home() {
               <h2 className="text-4xl font-bold mb-10 bg-gradient-to-r from-blue-400 to-purple-400 text-transparent bg-clip-text">
                 Resource Map
               </h2>
-              <ResourceMap resources={resources} ref={svgRef} />
+              <ResourceMap resources={resources} />
             </div>
 
             <div className="w-full bg-white/10 rounded-3xl p-10 backdrop-blur-2xl border border-white/20 shadow-[0_0_60px_-15px_rgba(0,0,0,0.5)]">
