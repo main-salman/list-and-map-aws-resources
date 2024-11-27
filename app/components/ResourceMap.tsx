@@ -52,6 +52,12 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
   const { resources } = props;
   const flowRef = useRef<HTMLDivElement>(null);
 
+  const standardMarker = {
+    type: MarkerType.Arrow,
+    width: 20,
+    height: 20
+  };
+
   useImperativeHandle(ref, () => ({
     exportToSvg: async () => {
       if (flowRef.current) {
@@ -135,6 +141,30 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
     const edges: Edge[] = [];
     const addedEdges = new Set<string>();
 
+    // Define a standard marker configuration with smaller arrows
+    const standardMarker = {
+      type: MarkerType.Arrow,
+      width: 12,
+      height: 12
+    };
+
+    // Define standard edge options
+    const standardEdgeOptions = {
+      type: 'smoothstep',
+      animated: true,
+      markerEnd: standardMarker,
+      style: { 
+        stroke: '#94a3b8',
+        strokeWidth: 9,
+        opacity: 0.8
+      },
+      routing: 'orthogonal',
+      pathOptions: {
+        offset: 25,
+        borderRadius: 20,
+      },
+    };
+
     resources.forEach(resource => {
       // Security Group connections
       if (resource.relationships?.securityGroups) {
@@ -146,10 +176,7 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
               source: resource.id,
               target: sgId,
               label: 'Security Group',
-              type: 'smoothstep',
-              animated: true,
-              markerEnd: { type: MarkerType.Arrow },
-              style: { stroke: '#666' },
+              ...standardEdgeOptions,
             });
             addedEdges.add(edgeId);
           }
@@ -164,10 +191,7 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
           source: resource.relationships.loadBalancer,
           target: resource.id,
           label: 'Target Group',
-          type: 'smoothstep',
-          animated: true,
-          markerEnd: { type: MarkerType.Arrow },
-          style: { stroke: '#666' },
+          ...standardEdgeOptions,
         });
       }
 
@@ -193,10 +217,7 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
               source: resource.id,
               target: loadBalancer.id,
               label: 'DNS Alias',
-              type: 'smoothstep',
-              animated: true,
-              markerEnd: { type: MarkerType.Arrow },
-              style: { stroke: '#666' },
+              ...standardEdgeOptions,
             });
             addedEdges.add(edgeId);
           }
@@ -218,10 +239,7 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
               source: hostedZone.id,
               target: resource.id,
               label: 'Record',
-              type: 'smoothstep',
-              animated: true,
-              markerEnd: { type: MarkerType.Arrow },
-              style: { stroke: '#666' },
+              ...standardEdgeOptions,
             });
             addedEdges.add(edgeId);
           }
@@ -236,10 +254,7 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
           source: resource.id,
           target: resource.relationships.loadBalancer,
           label: 'SSL/TLS',
-          type: 'smoothstep',
-          animated: true,
-          markerEnd: { type: MarkerType.Arrow },
-          style: { stroke: '#666' },
+          ...standardEdgeOptions,
         });
       }
 
@@ -252,10 +267,7 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
             source: resource.id,
             target: volumeId,
             label: 'Volume',
-            type: 'smoothstep',
-            animated: true,
-            markerEnd: { type: MarkerType.Arrow },
-            style: { stroke: '#666' },
+            ...standardEdgeOptions,
           });
         });
       }
@@ -283,8 +295,14 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
         minZoom={0.1}
         maxZoom={4}
         defaultEdgeOptions={{
-          style: { stroke: '#666', strokeWidth: 2 },
+          type: 'smoothstep',
+          style: { 
+            stroke: '#94a3b8', 
+            strokeWidth: 9
+          },
           animated: true,
+          markerEnd: standardMarker,
+          routing: 'orthogonal',
         }}
       >
         <Background color="#333" gap={16} />
