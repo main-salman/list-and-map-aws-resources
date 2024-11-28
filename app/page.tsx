@@ -21,7 +21,7 @@ import {
   Route53Client, ListHostedZonesCommand, ListResourceRecordSetsCommand
 } from '@aws-sdk/client-route-53';
 import {
-  ECSClient, ListClustersCommand, ListServicesCommand
+  ECSClient, ListClustersCommand, ListServicesCommand, DescribeServicesCommand
 } from '@aws-sdk/client-ecs';
 import { 
   ElasticLoadBalancingV2Client, 
@@ -76,6 +76,7 @@ interface AWSResource {
     dnsRecords?: string[];
     certificate?: string;
     instances?: string[];
+    volumes?: string[];
   };
 }
 
@@ -128,7 +129,10 @@ export default function Home() {
                 name: instance.Tags?.find(tag => tag.Key === 'Name')?.Value || 'Unnamed',
                 id: instance.InstanceId || '',
                 region,
-                url: `https://${region}.console.aws.amazon.com/ec2/v2/home?region=${region}#InstanceDetails:instanceId=${instance.InstanceId}`
+                url: `https://${region}.console.aws.amazon.com/ec2/v2/home?region=${region}#InstanceDetails:instanceId=${instance.InstanceId}`,
+                relationships: {
+                  volumes: instance.BlockDeviceMappings?.map(vol => vol.Ebs?.VolumeId).filter(Boolean) as string[]
+                }
               });
             });
           });
@@ -216,16 +220,29 @@ export default function Home() {
               cluster: clusterArn
             }));
             
-            services.serviceArns?.forEach(serviceArn => {
+            // Use Promise.all to handle async operations in forEach
+            await Promise.all(services.serviceArns?.map(async (serviceArn) => {
+              // Get the service details to check for volumes
+              const serviceDetails = await ecsClient.send(new DescribeServicesCommand({
+                cluster: clusterArn,
+                services: [serviceArn]
+              }));
+
+              const service = serviceDetails.services?.[0];
+              if (!service) return;
+
               discoveredResources.push({
                 type: 'ECS Service',
                 serviceType: 'ECS',
                 name: serviceArn.split('/').pop() || '',
                 id: serviceArn,
                 region,
-                url: `https://${region}.console.aws.amazon.com/ecs/home?region=${region}#/clusters/${clusterArn.split('/').pop()}/services/${serviceArn.split('/').pop()}`
+                url: `https://${region}.console.aws.amazon.com/ecs/home?region=${region}#/clusters/${clusterArn.split('/').pop()}/services/${serviceArn.split('/').pop()}`,
+                relationships: {
+                  volumes: service.volumes?.map(vol => vol.name).filter(Boolean) as string[]
+                }
               });
-            });
+            }) || []);
           }
         } catch (err) {
           console.error(`Error scanning ECS in ${region}:`, err);

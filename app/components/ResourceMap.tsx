@@ -291,17 +291,47 @@ const FlowWithDownload = forwardRef((props: ResourceMapProps, ref) => {
       }
 
       // Volume connections
-      if (resource.relationships?.volumes) {
-        resource.relationships.volumes.forEach(volumeId => {
-          const edgeId = `${resource.id}-${volumeId}-vol`;
-          edges.push(createEdgeWithSelection({
-            id: edgeId,
-            source: resource.id,
-            target: volumeId,
-            label: 'Volume',
-            ...standardEdgeOptions,
-          }));
-          addedEdges.add(edgeId);
+      if (resource.type === 'EBS Volume') {
+        // Connect to EC2 instances
+        const ec2Instances = resources.filter(r => 
+          r.type === 'EC2 Instance' && 
+          r.region === resource.region &&
+          r.relationships?.volumes?.includes(resource.id)
+        );
+
+        ec2Instances.forEach(instance => {
+          const edgeId = `${instance.id}-${resource.id}-vol`;
+          if (!addedEdges.has(edgeId)) {
+            edges.push(createEdgeWithSelection({
+              id: edgeId,
+              source: instance.id,
+              target: resource.id,
+              label: 'EBS Volume',
+              ...standardEdgeOptions,
+            }));
+            addedEdges.add(edgeId);
+          }
+        });
+
+        // Connect to ECS Services
+        const ecsServices = resources.filter(r => 
+          r.type === 'ECS Service' && 
+          r.region === resource.region &&
+          r.relationships?.volumes?.includes(resource.id)
+        );
+
+        ecsServices.forEach(service => {
+          const edgeId = `${service.id}-${resource.id}-vol`;
+          if (!addedEdges.has(edgeId)) {
+            edges.push(createEdgeWithSelection({
+              id: edgeId,
+              source: service.id,
+              target: resource.id,
+              label: 'EBS Volume',
+              ...standardEdgeOptions,
+            }));
+            addedEdges.add(edgeId);
+          }
         });
       }
 

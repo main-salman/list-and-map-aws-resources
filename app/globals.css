@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -10,18 +10,23 @@
   --background-end-rgb: 0, 0, 0;
 }
 
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
 body {
   color: rgb(var(--foreground-rgb));
   background: linear-gradient(
     to bottom,
-    transparent,
+    rgb(var(--background-start-rgb)),
     rgb(var(--background-end-rgb))
-  )
-  rgb(var(--background-start-rgb));
-  margin: 0;
-  padding: 0;
-  min-height: 100vh;
-  width: 100%;
+  );
+  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.02em;
 }
 
 .container {
@@ -41,34 +46,55 @@ main {
   align-items: center;
 }
 
-h1, p {
-  width: 100%;
-  text-align: center;
+h1 {
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  background: linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(255,255,255,0.8) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
-.flex {
-  display: flex;
-  justify-content: center;
-  align-items: center;
+h2, h3, h4 {
+  font-weight: 500;
+  letter-spacing: -0.02em;
 }
 
-.flex-col {
-  flex-direction: column;
+p {
+  font-weight: 400;
+  line-height: 1.5;
 }
 
-* {
-  box-sizing: border-box;
+button {
+  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  transition: all 0.3s ease;
 }
 
-.title-container {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
+input {
+  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  letter-spacing: -0.01em;
 }
 
-input[type="datetime-local"]::-webkit-calendar-picker-indicator {
-  filter: invert(1);
-  opacity: 0.5;
+.glass-effect {
+  backdrop-filter: blur(20px) saturate(180%);
+  background-color: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.text-gradient {
+  background: linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(255,255,255,0.8) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Apple-style smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Apple-style focus states */
+*:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 125, 250, 0.6);
 }
