@@ -17,7 +17,7 @@ Specific list of resource types are supported - but more will be added overtime 
 * IAM
 
 
-This app was built using Cursor AI - https://www.cursor.com/
+This app was built using Cursor AI - https://www.cursor.com/. You can make similar apps with ZERO programming experience! Here is a guide: https://salmannaqvi.com/2024/11/22/make-a-web-application-from-scratch-with-cursor-no-development-experience-needed/
 
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
