@@ -1,6 +1,22 @@
 # Generate AWS diagram and list of resources automatically!
 <img width="2023" alt="image" src="https://github.com/user-attachments/assets/72d1077d-dceb-4cf7-b6d3-b2aadd9176cb">
 
+With this very easy to use and lightweight app, you can create and view a dynamic AWS diagram and also generate a list of all resources within an AWS diagram. It also shows relationships between items. You can also click on the links between items and move object around. This is really useful to see what's going on inside a particular account. Try it out - it's very easy to use!
+
+Specific list of resource types are supported - but more will be added overtime as per demand. Current list of supported services:
+
+* EC2
+* VPC
+* ECS
+* Route 53
+* ACM
+* RDS
+* ELB
+* Lambda
+* Events
+
+
+This app was built using Cursor AI - https://www.cursor.com/
 
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
