@@ -14,6 +14,7 @@ Specific list of resource types are supported - but more will be added overtime 
 * ELB
 * Lambda
 * Events
+* IAM
 
 
 This app was built using Cursor AI - https://www.cursor.com/
