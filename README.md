@@ -1,7 +1,7 @@
 # Generate AWS diagram and list of resources automatically!
 <img width="2023" alt="image" src="https://github.com/user-attachments/assets/72d1077d-dceb-4cf7-b6d3-b2aadd9176cb">
 
-With this very easy to use and lightweight app, you can create and view a dynamic AWS diagram and also generate a list of all resources within an AWS diagram. It also shows relationships between items. You can also click on the links between items and move object around. This is really useful to see what's going on inside a particular account. Try it out - it's very easy to use!
+With this very easy to use and lightweight app, you can create and view a dynamic AWS diagram and also generate a list of all resources within an AWS diagram. It also shows relationships between items. You can also click on the links between items and move object around. This is really useful to see what's going on inside a particular account. It runs locally on your device, and any communication remains between your device and AWS, so it's very safe and easy to try out too. It's much easier to use this tool to see the relationships between the ELBs, Target Groups, EC2, EBS, ACM, etc. instead of digging through the AWS Console to figure out all the relationships. It's also useful for finding stuff that not doing anything and cleaning up your AWS accounts.
 
 Specific list of resource types are supported - but more will be added overtime as per demand. Current list of supported services:
 
@@ -15,6 +15,8 @@ Specific list of resource types are supported - but more will be added overtime 
 * Lambda
 * Events
 * IAM
+* EBS
+* (and more overtime)
 
 
 This app was built using Cursor AI - https://www.cursor.com/. You can make similar apps with ZERO programming experience! Here is a guide: https://salmannaqvi.com/2024/11/22/make-a-web-application-from-scratch-with-cursor-no-development-experience-needed/
