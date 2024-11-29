@@ -4,37 +4,146 @@
 
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-## Getting Started
+## Windows Instructions
 
-First, run the development server:
+### 1. Install Node.js
+1. Go to the [Node.js website](https://nodejs.org/).
+2. Download the Windows installer for the LTS (Long Term Support) version.
+3. Run the installer and follow the prompts to complete the installation.
+4. Verify the installation by opening the Command Prompt and running:
+   ```bash
+   node -v
+   npm -v
+   ```
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+### 2. Clone the Repository
+1. Open the Command Prompt and navigate to the directory where you want to clone the repository.
+2. Clone the repository:
+   ```bash
+   git clone https://github.com/main-salman/list-and-map-aws-resources.git
+   cd list-and-map-aws-resources
+   ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 3. Install Dependencies
+1. Navigate to the project directory:
+   ```bash
+   cd list-and-map-aws-resources
+   ```
+2. Install the required dependencies:
+   ```bash
+   npm install
+   ```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 4. Create AWS Credentials
+1. Go to AWS Console and create Access Key ID and Secret Access Key
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 5. Run the Application
+1. Start the application:
+   ```bash
+   npm run dev
+   ```
+2. Open your web browser and navigate to `http://localhost:3000` to see your application running. 
 
-## Learn More
+### 7. Input the credentials
+1. In your browser, input the AWS credentials. You access the AWS account with your credentials from your comptuer - so it's no different than using your AWS credentials on AWS CLI. The communication stays between your computer/server, wherever you are running this app, and AWS.
 
-To learn more about Next.js, take a look at the following resources:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Deploy on Vercel
+## Linux Instructions
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 1. Install Node.js
+1. Open your terminal.
+2. Install Node.js using a package manager. For Ubuntu/Debian, you can use:
+   ```bash
+   sudo apt update
+   sudo apt install nodejs npm
+   ```
+3. Verify the installation by running:
+   ```bash
+   node -v
+   npm -v
+   ```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 2. Clone the Repository
+1. Open your terminal and navigate to the directory where you want to clone the repository.
+2. Clone the repository:
+   ```bash
+   git clone https://github.com/main-salman/list-and-map-aws-resources.git
+   cd list-and-map-aws-resources
+   ```
+
+### 3. Install Dependencies
+1. Navigate to the project directory:
+   ```bash
+   cd list-and-map-aws-resources
+   ```
+2. Install the required dependencies:
+   ```bash
+   npm install
+   ```
+
+### 4. Create AWS Credentials
+1. Go to the AWS Management Console and create an Access Key ID and Secret Access Key.
+
+
+### 5. Run the Application
+1. Start the application:
+   ```bash
+   npm run dev
+   ```
+2. Open your web browser and navigate to `http://localhost:3000` to see your application running.
+
+### 6. Input the Credentials
+1. In your browser, input the AWS credentials. You access the AWS account with your credentials from your computer, so it's no different than using your AWS credentials on the AWS CLI. The communication stays between your computer/server, wherever you are running this app, and AWS.
+
+## Mac Instructions
+
+
+### 1. Install Node.js
+1. Open your terminal.
+2. Install Node.js using Homebrew. If you don't have Homebrew installed, first install it with:
+   ```bash
+   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+   ```
+3. Install Node.js:
+   ```bash
+   brew install node
+   ```
+4. Verify the installation by running:
+   ```bash
+   node -v
+   npm -v
+   ```
+
+### 2. Clone the Repository
+1. Open your terminal and navigate to the directory where you want to clone the repository.
+2. Clone the repository:
+   ```bash
+   git clone https://github.com/main-salman/list-and-map-aws-resources.git
+   cd list-and-map-aws-resources
+   ```
+
+### 3. Install Dependencies
+1. Navigate to the project directory:
+   ```bash
+   cd list-and-map-aws-resources
+   ```
+2. Install the required dependencies:
+   ```bash
+   npm install
+   ```
+
+### 4. Create AWS Credentials
+1. Go to the AWS Management Console and create an Access Key ID and Secret Access Key.
+
+### 5. Run the Application
+1. Start the application:
+   ```bash
+   npm run dev
+   ```
+2. Open your web browser and navigate to `http://localhost:3000` to see your application running.
+
+### 6. Input the Credentials
+1. In your browser, input the AWS credentials. You access the AWS account with your credentials from your computer, so it's no different than using your AWS credentials on the AWS CLI. The communication stays between your computer/server, wherever you are running this app, and AWS.
+
