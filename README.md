@@ -1,3 +1,7 @@
+#Generate AWS diagram and list of resources automatically!
+<img width="2023" alt="image" src="https://github.com/user-attachments/assets/72d1077d-dceb-4cf7-b6d3-b2aadd9176cb">
+
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
