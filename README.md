@@ -63,7 +63,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
    ```
 2. Open your web browser and navigate to `http://localhost:3000` to see your application running. 
 
-### 7. Input the credentials
+### 6. Input the credentials
 1. In your browser, input the AWS credentials. You access the AWS account with your credentials from your comptuer - so it's no different than using your AWS credentials on AWS CLI. The communication stays between your computer/server, wherever you are running this app, and AWS.
 
 
