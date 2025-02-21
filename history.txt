@@ -1,0 +1,60 @@
+# AWS Resource Map Ref Debugging History
+
+## Issue
+The ResourceMap ref is not being properly initialized, leading to "ResourceMap ref not initialized" errors when trying to use export functions.
+
+## Attempted Solutions
+
+1. First Attempt - Basic Ref Forwarding
+- Used simple forwardRef with direct ref passing
+- Issue: Ref was null when component mounted
+- Error: "ResourceMap ref not initialized"
+
+2. Second Attempt - Dynamic Import Wrapper
+- Created DynamicResourceMapWrapper to handle dynamic imports
+- Added loading states and ref forwarding
+- Issue: Ref still null after component mount
+- Error persisted
+
+3. Third Attempt - Multiple Component Chain
+- Split into DynamicResourceMapLoader and DynamicResourceMapWrapper
+- Added more ref forwarding checks
+- Issue: Ref not propagating through component chain
+- Error still present
+
+4. Fourth Attempt - Ref Initialization Timing
+- Added delays and initialization checks
+- Added extensive logging
+- Issue: Ref timing issues between mount and initialization
+
+5. Fifth Attempt - State Management
+- Added explicit state tracking for export methods
+- Added multiple checks for method availability
+- Issue: Methods available in wrapper but not in loader
+- Error: "Map not ready" despite methods being present
+
+6. Sixth Attempt - Hook Order Fix
+- Fixed "Cannot access exportMethods before initialization" error
+- Reordered hooks to ensure proper initialization
+- Simplified debugging to reduce complexity
+- Issue: Need to verify if this fixes the underlying ref issue
+
+7. Seventh Attempt - Ref Chain Repair
+- Fixed ref forwarding through ResourceMap component
+- Added proper ref handling at each level
+- Improved method forwarding
+- Added better error handling
+- Issue: Testing if this fixes the ref chain
+
+## Current Understanding
+- The ref chain was breaking at the ResourceMap level
+- Each component needs to properly forward its methods
+- Need to ensure refs are properly initialized before use
+- Dynamic imports require careful ref handling
+
+## Next Steps
+1. Test the complete ref chain
+2. Verify method forwarding at each level
+3. Add error boundaries for safety
+4. Consider adding retry mechanism
+5. Add loading states for better UX 

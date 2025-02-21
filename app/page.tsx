@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { 
   EC2Client, DescribeInstancesCommand,
   DescribeVolumesCommand, DescribeSecurityGroupsCommand,
@@ -52,9 +52,14 @@ import {
   ListFunctionsCommand
 } from '@aws-sdk/client-lambda';
 
-const ResourceMap = dynamic(() => import('./components/ResourceMap'), {
-  ssr: false
-});
+import {
+  CloudFrontClient, 
+  ListDistributionsCommand,
+  GetDistributionCommand
+} from '@aws-sdk/client-cloudfront';
+
+import ResourceMap, { ResourceMapRef } from './components/ResourceMap';
+import DynamicResourceMapWrapper from './components/DynamicResourceMapWrapper';
 
 interface ResourceLink {
   source: string;
@@ -77,6 +82,16 @@ interface AWSResource {
     certificate?: string;
     instances?: string[];
     volumes?: string[];
+    cloudfront?: string;
+    repository?: string;
+    distribution?: string;
+    origin?: string;
+    hostedZone?: string;
+    aliases?: string[];
+    wafAcl?: string;
+    wafRules?: string[];
+    wafAssociations?: string[];
+    protectedBy?: string;
   };
 }
 
@@ -86,6 +101,9 @@ export default function Home() {
   const [resources, setResources] = useState<AWSResource[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
+  const [isMapLoaded, setIsMapLoaded] = useState(false);
+  const resourceMapRef = useRef<ResourceMapRef>(null);
 
   const regions = [
     'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
@@ -558,6 +576,67 @@ export default function Home() {
         console.error('Error scanning IAM:', err);
       }
 
+      // Scan CloudFront Distributions
+      for (const region of ['us-east-1']) { // CloudFront is global, use us-east-1
+        const cloudFrontClient = new CloudFrontClient({
+          region,
+          credentials: {
+            accessKeyId,
+            secretAccessKey
+          }
+        });
+
+        // List all distributions
+        const listDistributionsResponse = await cloudFrontClient.send(
+          new ListDistributionsCommand({})
+        );
+
+        const distributions = listDistributionsResponse.DistributionList?.Items || [];
+
+        for (const distribution of distributions) {
+          if (!distribution.Id || !distribution.DomainName) continue;
+
+          // Get detailed distribution info
+          const getDistributionResponse = await cloudFrontClient.send(
+            new GetDistributionCommand({
+              Id: distribution.Id
+            })
+          );
+
+          const dist = getDistributionResponse.Distribution;
+          if (!dist) continue;
+
+          // Extract origin info
+          const origins = dist.DistributionConfig?.Origins?.Items || [];
+          const originIds = origins.map(origin => {
+            // Extract ALB ID from origin domain name
+            const match = origin.DomainName?.match(/^([^.]+)/);
+            return match ? match[1] : origin.Id;
+          });
+
+          // Extract WAF ACL if present
+          const webAclId = dist.DistributionConfig?.WebACLId;
+
+          // Extract alternate domain names
+          const aliases = dist.DistributionConfig?.Aliases?.Items || [];
+
+          discoveredResources.push({
+            type: 'Distribution',
+            serviceType: 'CloudFront',
+            name: distribution.DomainName || distribution.Id,
+            id: distribution.Id,
+            region: 'global',
+            url: `https://console.aws.amazon.com/cloudfront/home?region=us-east-1#/distributions/${distribution.Id}`,
+            relationships: {
+              origin: originIds[0], // Primary origin
+              wafAcl: webAclId || undefined,
+              aliases: aliases,
+              // Add other relationships as needed
+            }
+          });
+        }
+      }
+
       setResources(discoveredResources);
     } catch (err) {
       console.error('Error during scan:', err);
@@ -605,6 +684,23 @@ export default function Home() {
             font-weight: bold;
             margin-bottom: 0.5rem;
           }
+          .relationships {
+            margin-top: 0.5rem;
+            font-size: 0.9em;
+            color: #666;
+          }
+          .relationship-item {
+            margin: 0.25rem 0;
+            padding-left: 1rem;
+          }
+          .cloudfront-info {
+            color: #0073bb;
+            font-weight: 500;
+          }
+          .waf-info {
+            color: #FF69B4;
+            font-weight: 500;
+          }
         </style>
       </head>
       <body>
@@ -628,9 +724,93 @@ export default function Home() {
               <p>Type: ${resource.type}</p>
               <p>Region: ${resource.region}</p>
               <p>ID: ${resource.id}</p>
+              ${resource.serviceType === 'WAF' ? `
+                <p class="waf-info">Web ACL: ${resource.name}</p>
+              ` : ''}
             </div>
-          </div>
         `;
+
+        // Add relationships section
+        if (resource.relationships) {
+          html += `<div class="relationships">`;
+          
+          if (resource.relationships.securityGroups?.length) {
+            html += `
+              <div class="relationship-item">
+                Security Groups: ${resource.relationships.securityGroups.join(', ')}
+              </div>`;
+          }
+          if (resource.relationships.targetGroups?.length) {
+            html += `
+              <div class="relationship-item">
+                Target Groups: ${resource.relationships.targetGroups.join(', ')}
+              </div>`;
+          }
+          if (resource.relationships.loadBalancer) {
+            html += `
+              <div class="relationship-item">
+                Load Balancer: ${resource.relationships.loadBalancer}
+              </div>`;
+          }
+          if (resource.relationships.dnsRecords?.length) {
+            html += `
+              <div class="relationship-item">
+                DNS Records: ${resource.relationships.dnsRecords.join(', ')}
+              </div>`;
+          }
+          if (resource.relationships.cloudfront) {
+            html += `
+              <div class="relationship-item">
+                CloudFront: ${resource.relationships.cloudfront}
+              </div>`;
+          }
+          if (resource.relationships.origin) {
+            html += `
+              <div class="relationship-item">
+                Origin: ${resource.relationships.origin}
+              </div>`;
+          }
+          if (resource.relationships.hostedZone) {
+            html += `
+              <div class="relationship-item">
+                Hosted Zone: ${resource.relationships.hostedZone}
+              </div>`;
+          }
+          if (resource.relationships.aliases?.length) {
+            html += `
+              <div class="relationship-item">
+                Alternate Domain Names: ${resource.relationships.aliases.join(', ')}
+              </div>`;
+          }
+          if (resource.relationships.wafAcl) {
+            html += `
+              <div class="relationship-item">
+                WAF ACL: ${resource.relationships.wafAcl}
+              </div>`;
+          }
+          if (resource.relationships.wafRules?.length) {
+            html += `
+              <div class="relationship-item">
+                WAF Rules: ${resource.relationships.wafRules.join(', ')}
+              </div>`;
+          }
+          if (resource.relationships.wafAssociations?.length) {
+            html += `
+              <div class="relationship-item">
+                Protected Resources: ${resource.relationships.wafAssociations.join(', ')}
+              </div>`;
+          }
+          if (resource.relationships.protectedBy) {
+            html += `
+              <div class="relationship-item">
+                Protected By WAF: ${resource.relationships.protectedBy}
+              </div>`;
+          }
+          
+          html += `</div>`;
+        }
+
+        html += `</div>`;
       });
 
       html += `</div>`;
@@ -652,7 +832,96 @@ export default function Home() {
     URL.revokeObjectURL(url);
   };
 
+  const handleDrawioExport = useCallback(() => {
+    console.log('[Page] Draw.io export clicked:', {
+      isMapLoaded,
+      hasRef: !!resourceMapRef.current,
+      refMethods: resourceMapRef.current ? Object.keys(resourceMapRef.current) : []
+    });
+
+    if (!resourceMapRef.current?.exportToDrawio) {
+      console.error('[Page] exportToDrawio not available:', {
+        hasRef: !!resourceMapRef.current,
+        methods: resourceMapRef.current ? Object.keys(resourceMapRef.current) : []
+      });
+      return;
+    }
+
+    try {
+      resourceMapRef.current.exportToDrawio();
+    } catch (error) {
+      console.error('[Page] Draw.io export error:', error);
+    }
+  }, [isMapLoaded]);
+
+  const handlePngExport = useCallback(() => {
+    console.log('[Page] PNG export button clicked');
+    console.log('Current state:', {
+      isMapLoaded,
+      hasRef: !!resourceMapRef.current,
+      refMethods: resourceMapRef.current ? Object.keys(resourceMapRef.current) : []
+    });
+
+    if (!resourceMapRef.current?.exportToPng) {
+      console.error('[Page] exportToPng not available:', {
+        hasRef: !!resourceMapRef.current,
+        methods: resourceMapRef.current ? Object.keys(resourceMapRef.current) : []
+      });
+      return;
+    }
+
+    try {
+      resourceMapRef.current.exportToPng();
+    } catch (error) {
+      console.error('[Page] PNG export error:', error);
+    }
+  }, [isMapLoaded]);
+
+  const handleMapLoad = useCallback(() => {
+    console.log('[Page] Map loaded state changed:', {
+      isMapLoaded,
+      hasRef: !!resourceMapRef.current,
+      refMethods: resourceMapRef.current ? Object.keys(resourceMapRef.current) : []
+    });
+    setIsMapLoaded(true);
+  }, [isMapLoaded]);
+
+  // Monitor ref changes
+  useEffect(() => {
+    console.log('[Page] Ref updated:', {
+      hasRef: !!resourceMapRef.current,
+      methods: resourceMapRef.current ? Object.keys(resourceMapRef.current) : []
+    });
+  }, [resourceMapRef.current]);
+
   const groupedResources = groupResourcesByService(resources);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    console.log('[Page] Mounting with:', {
+      hasRef: !!resourceMapRef.current,
+      isMapLoaded,
+      resourceCount: resources.length
+    });
+  }, []);
+
+  useEffect(() => {
+    console.log('[Page] Map loaded state changed:', {
+      isMapLoaded,
+      hasRef: !!resourceMapRef.current,
+      refMethods: resourceMapRef.current ? Object.keys(resourceMapRef.current) : []
+    });
+  }, [isMapLoaded]);
+
+  useEffect(() => {
+    console.log('[Page] Ref changed:', {
+      hasRef: !!resourceMapRef.current,
+      refMethods: resourceMapRef.current ? Object.keys(resourceMapRef.current) : []
+    });
+  }, [resourceMapRef.current]);
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 text-white">
@@ -721,7 +990,7 @@ export default function Home() {
           </div>
         )}
 
-        {resources.length > 0 && (
+        {resources.length > 0 && isMounted && (
           <>
             <div className="mb-12 flex gap-4 justify-center">
               <button
@@ -738,13 +1007,54 @@ export default function Home() {
                   Download Report
                 </span>
               </button>
+              
+              <button
+                onClick={handleDrawioExport}
+                disabled={!isMapLoaded}
+                className={`px-8 py-4 rounded-2xl font-semibold text-lg transition-all duration-300
+                         bg-gradient-to-r from-blue-500 to-green-500 
+                         shadow-[0_10px_40px_-15px_rgba(59,130,246,0.5)] 
+                         ${isMapLoaded 
+                           ? 'hover:shadow-[0_20px_60px_-15px_rgba(59,130,246,0.5)] hover:translate-y-[-2px] active:translate-y-[1px]'
+                           : 'opacity-50 cursor-not-allowed'}`}
+              >
+                <span className="flex items-center gap-3">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/>
+                  </svg>
+                  Export to draw.io
+                </span>
+              </button>
+
+              <button
+                onClick={handlePngExport}
+                disabled={!isMapLoaded}
+                className={`px-8 py-4 rounded-2xl font-semibold text-lg transition-all duration-300
+                         bg-gradient-to-r from-yellow-500 to-orange-500 
+                         shadow-[0_10px_40px_-15px_rgba(234,179,8,0.5)]
+                         ${isMapLoaded 
+                           ? 'hover:shadow-[0_20px_60px_-15px_rgba(234,179,8,0.5)] hover:translate-y-[-2px] active:translate-y-[1px]'
+                           : 'opacity-50 cursor-not-allowed'}`}
+              >
+                <span className="flex items-center gap-3">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                  </svg>
+                  Export as PNG
+                </span>
+              </button>
             </div>
 
             <div className="w-full bg-white/10 rounded-3xl p-10 mb-12 backdrop-blur-2xl border border-white/20 shadow-[0_0_60px_-15px_rgba(0,0,0,0.5)]">
               <h2 className="text-4xl font-bold mb-10 bg-gradient-to-r from-blue-400 to-purple-400 text-transparent bg-clip-text">
                 Resource Map
               </h2>
-              <ResourceMap resources={resources} />
+              <DynamicResourceMapWrapper 
+                resources={resources} 
+                ref={resourceMapRef}
+                key={resources.length}
+                onLoad={handleMapLoad}
+              />
             </div>
 
             <div className="w-full bg-white/10 rounded-3xl p-10 backdrop-blur-2xl border border-white/20 shadow-[0_0_60px_-15px_rgba(0,0,0,0.5)]">

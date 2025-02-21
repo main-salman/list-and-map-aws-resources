@@ -142,7 +142,6 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
    git clone https://github.com/main-salman/list-and-map-aws-resources.git
    cd list-and-map-aws-resources
    ```
-
 ### 3. Install Dependencies
 1. Navigate to the project directory:
    ```bash
@@ -165,4 +164,5 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ### 6. Input the Credentials
 1. In your browser, input the AWS credentials. You access the AWS account with your credentials from your computer, so it's no different than using your AWS credentials on the AWS CLI. The communication stays between your computer/server, wherever you are running this app, and AWS.
+
 
