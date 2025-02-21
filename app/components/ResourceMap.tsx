@@ -391,9 +391,9 @@ const Flow = forwardRef<ResourceMapRef, ResourceMapProps>((props, ref) => {
 
     resources.forEach(resource => {
       if (resource.relationships) {
-        // Route53 relationships
+        // Handle Route53 relationships first
         if (resource.serviceType === 'Route 53') {
-          // Connect to ALBs
+          // Connect to Load Balancers
           if (resource.relationships.loadBalancer) {
             const edgeId = createUniqueEdgeId(`route53-alb-${resource.id}-${resource.relationships.loadBalancer}`);
             edges.push({
@@ -402,11 +402,11 @@ const Flow = forwardRef<ResourceMapRef, ResourceMapProps>((props, ref) => {
               target: resource.relationships.loadBalancer,
               label: 'ALB Record',
               type: 'smoothstep',
-              style: { stroke: selectedEdge === edgeId ? '#60a5fa' : '#94a3b8' }
+              style: { stroke: selectedEdge === edgeId ? '#60a5fa' : '#F0E68C' }
             });
           }
 
-          // Connect to CloudFront
+          // Connect to CloudFront distributions
           if (resource.relationships.cloudfront) {
             const edgeId = createUniqueEdgeId(`route53-cf-${resource.id}-${resource.relationships.cloudfront}`);
             edges.push({
@@ -415,28 +415,69 @@ const Flow = forwardRef<ResourceMapRef, ResourceMapProps>((props, ref) => {
               target: resource.relationships.cloudfront,
               label: 'CloudFront Record',
               type: 'smoothstep',
-              style: { stroke: selectedEdge === edgeId ? '#60a5fa' : '#94a3b8' }
+              style: { stroke: selectedEdge === edgeId ? '#60a5fa' : '#F0E68C' }
+            });
+          }
+
+          // Connect to S3 buckets
+          if (resource.relationships.bucket) {
+            const edgeId = createUniqueEdgeId(`route53-s3-${resource.id}-${resource.relationships.bucket}`);
+            edges.push({
+              id: edgeId,
+              source: resource.id,
+              target: resource.relationships.bucket,
+              label: 'S3 Record',
+              type: 'smoothstep',
+              style: { stroke: selectedEdge === edgeId ? '#60a5fa' : '#F0E68C' }
+            });
+          }
+
+          // Connect to hosted zones
+          if (resource.relationships.hostedZone) {
+            const edgeId = createUniqueEdgeId(`route53-hz-${resource.id}-${resource.relationships.hostedZone}`);
+            edges.push({
+              id: edgeId,
+              source: resource.id,
+              target: resource.relationships.hostedZone,
+              label: 'Hosted Zone',
+              type: 'smoothstep',
+              style: { stroke: selectedEdge === edgeId ? '#60a5fa' : '#F0E68C' }
             });
           }
         }
 
-        // Resources pointing to Route53
+        // Handle resources that have Route53 records
         if (resource.relationships.dnsRecords) {
           resource.relationships.dnsRecords.forEach(recordId => {
             const edgeId = createUniqueEdgeId(`dns-${resource.id}-${recordId}`);
             edges.push({
               id: edgeId,
-              source: resource.id,
-              target: recordId,
+              source: recordId,  // Reverse the direction - Route53 points to the resource
+              target: resource.id,
               label: 'DNS Record',
               type: 'smoothstep',
-              style: { stroke: selectedEdge === edgeId ? '#60a5fa' : '#94a3b8' }
+              style: { stroke: selectedEdge === edgeId ? '#60a5fa' : '#F0E68C' }
+            });
+          });
+        }
+
+        // Handle Route53 aliases
+        if (resource.relationships.aliases) {
+          resource.relationships.aliases.forEach(aliasId => {
+            const edgeId = createUniqueEdgeId(`alias-${resource.id}-${aliasId}`);
+            edges.push({
+              id: edgeId,
+              source: resource.id,
+              target: aliasId,
+              label: 'Alias',
+              type: 'smoothstep',
+              style: { stroke: selectedEdge === edgeId ? '#60a5fa' : '#F0E68C' }
             });
           });
         }
 
         // Security Group relationships
-        if (resource.relationships?.securityGroups) {
+        if (resource.relationships.securityGroups) {
           resource.relationships.securityGroups.forEach(sgId => {
             const edgeId = createUniqueEdgeId(`${resource.id}-${sgId}`);
             edges.push({
@@ -451,17 +492,19 @@ const Flow = forwardRef<ResourceMapRef, ResourceMapProps>((props, ref) => {
         }
 
         // Target Group relationships
-        resource.relationships.targetGroups?.forEach(tgArn => {
-          const edgeId = createUniqueEdgeId(`${resource.id}-${tgArn}`);
-          edges.push({
-            id: edgeId,
-            source: resource.id,
-            target: tgArn,
-            label: 'Target Group',
-            type: 'smoothstep',
-            style: { stroke: selectedEdge === edgeId ? '#60a5fa' : '#94a3b8' }
+        if (resource.relationships.targetGroups) {
+          resource.relationships.targetGroups.forEach(tgArn => {
+            const edgeId = createUniqueEdgeId(`${resource.id}-${tgArn}`);
+            edges.push({
+              id: edgeId,
+              source: resource.id,
+              target: tgArn,
+              label: 'Target Group',
+              type: 'smoothstep',
+              style: { stroke: selectedEdge === edgeId ? '#60a5fa' : '#94a3b8' }
+            });
           });
-        });
+        }
 
         // Load Balancer relationships
         if (resource.relationships.loadBalancer) {
@@ -551,73 +594,6 @@ const Flow = forwardRef<ResourceMapRef, ResourceMapProps>((props, ref) => {
             label: 'Origin',
             type: 'smoothstep',
             style: { stroke: selectedEdge === edgeId ? '#60a5fa' : '#94a3b8' }
-          });
-        }
-
-        // Add CloudFront to Route53 relationships
-        if (resource.relationships.hostedZone) {
-          const edgeId = createUniqueEdgeId(`${resource.id}-${resource.relationships.hostedZone}`);
-          edges.push({
-            id: edgeId,
-            source: resource.id,
-            target: resource.relationships.hostedZone,
-            label: 'Hosted Zone',
-            type: 'smoothstep',
-            style: { stroke: selectedEdge === edgeId ? '#60a5fa' : '#94a3b8' }
-          });
-        }
-
-        // Route53 relationships
-        if (resource.serviceType === 'Route 53') {
-          // Handle outgoing connections from Route53
-          const relationships = [
-            { type: 'loadBalancer', label: 'ALB Record' },
-            { type: 'cloudfront', label: 'CloudFront Record' },
-            { type: 'bucket', label: 'S3 Record' },
-            { type: 'hostedZone', label: 'Hosted Zone' }
-          ];
-
-          relationships.forEach(({ type, label }) => {
-            const targetId = resource.relationships?.[type];
-            if (targetId) {
-              const edgeId = createUniqueEdgeId(`${resource.id}-${targetId}-${type}`);
-              edges.push({
-                id: edgeId,
-                source: resource.id,
-                target: targetId,
-                label,
-                type: 'smoothstep',
-                style: { stroke: selectedEdge === edgeId ? '#60a5fa' : '#94a3b8' }
-              });
-            }
-          });
-
-          // Handle aliases
-          resource.relationships?.aliases?.forEach(aliasId => {
-            const edgeId = createUniqueEdgeId(`${resource.id}-${aliasId}-alias`);
-            edges.push({
-              id: edgeId,
-              source: resource.id,
-              target: aliasId,
-              label: 'Alias',
-              type: 'smoothstep',
-              style: { stroke: selectedEdge === edgeId ? '#60a5fa' : '#94a3b8' }
-            });
-          });
-        }
-
-        // Handle incoming connections to Route53
-        if (resource.relationships?.dnsRecords) {
-          resource.relationships.dnsRecords.forEach(recordId => {
-            const edgeId = createUniqueEdgeId(`${resource.id}-${recordId}-dns`);
-            edges.push({
-              id: edgeId,
-              source: resource.id,
-              target: recordId,
-              label: 'DNS Record',
-              type: 'smoothstep',
-              style: { stroke: selectedEdge === edgeId ? '#60a5fa' : '#94a3b8' }
-            });
           });
         }
 
@@ -798,16 +774,6 @@ const Flow = forwardRef<ResourceMapRef, ResourceMapProps>((props, ref) => {
       hasNodes: reactFlowInstance?.getNodes().length > 0
     });
   }, [isInitialized, reactFlowInstance]);
-
-  // Track method creation
-  useEffect(() => {
-    console.log('[Flow] Export methods updated:', {
-      hasMethods: !!exportMethods,
-      methods: exportMethods ? Object.keys(exportMethods) : [],
-      isInitialized,
-      hasInstance: !!reactFlowInstance
-    });
-  }, [exportMethods]);
 
   const onInit = useCallback((instance: any) => {
     console.log('ReactFlow initialized');
